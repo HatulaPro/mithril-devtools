@@ -71,7 +71,6 @@ const TreeViewer = (view) => {
 
 	const handleMessage = (message) => {
 		if (message.data.type === 'mithril_devtools_from') {
-			console.log(message);
 			const { action, payload } = message.data;
 
 			if (action === 'hover') {
