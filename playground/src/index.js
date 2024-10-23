@@ -25,7 +25,10 @@ const Child = () => ({
 
 const Child2 = () => ({
 	view: () =>
-		m('div', { style: 'color: red;' }, m('b', 'Child'), ' ', [[[m('u', '2'), 'hello']], m(Child, { text: 'child props', test: new MyTestClass() })]),
+		m('div', { style: 'color: red;' }, m('b', 'Child'), ' ', [
+			[[m('u', '2'), 'hello']],
+			m(Child, { text: 'child props', number: 4, boolean: true, func: () => 132, a: 1, b: 2, c: 3, test: new MyTestClass() }),
+		]),
 });
 
 const App = () => {

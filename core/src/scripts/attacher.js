@@ -6,11 +6,15 @@ const copyTree = (tree, location = []) => {
 		tag = tree.tag + (tree.tag === '#' ? 'text: ' + JSON.stringify(tree.children) : '');
 	} else if (typeof tree.tag === 'function') {
 		tag = tree.tag.name;
-		window.__mithril_devtools.components[JSON.stringify(location)] = tree.tag;
+		const locationStr = JSON.stringify(location);
+		window.__mithril_devtools.components[locationStr] = tree.tag;
+		window.__mithril_devtools.dom_nodes[locationStr] = tree.dom;
 		isComponent = true;
 	} else if (typeof tree.tag === 'object') {
 		tag = 'unknown component';
-		window.__mithril_devtools.components[JSON.stringify(location)] = tree.tag.view;
+		const locationStr = JSON.stringify(location);
+		window.__mithril_devtools.components[locationStr] = tree.tag.view;
+		window.__mithril_devtools.dom_nodes[locationStr] = tree.dom;
 		isComponent = true;
 	}
 
@@ -36,13 +40,13 @@ const copyTree = (tree, location = []) => {
 		tree.attrs,
 		(key, value) => {
 			if (typeof value === 'function') {
-				return value.toString();
+				return { __type_internal: 'function', name: value.name };
 			} else if (value && typeof value === 'object') {
 				if (value.constructor.name === 'Object') {
 					return value;
 				}
 
-				return { ...value, __type_internal: value.constructor.name };
+				return { __type_internal: value.constructor.name };
 			} else if (typeof value === 'number' || typeof value === 'string' || typeof value === 'boolean' || value === null || value === undefined) {
 				return value;
 			} else {
@@ -59,9 +63,9 @@ const TreeViewer = (view) => {
 	let dom = null;
 
 	function onchange(args) {
-		console.log(args);
 		dom = args.dom;
 		window.__mithril_devtools.components = {};
+		window.__mithril_devtools.dom_nodes = {};
 		const tree = copyTree(args);
 		window.postMessage({ type: 'mithril_devtools_to', content: JSON.stringify(tree) });
 	}
@@ -113,10 +117,6 @@ const TreeViewer = (view) => {
 					highlightEl.remove();
 				}
 			}
-			// else if (action === 'inspect_compo') {
-			// 	const node = getNodeFromLocation(payload);
-			// 	inspect(node);
-			// }
 		}
 	};
 	return {

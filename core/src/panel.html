@@ -3,14 +3,38 @@
 	<head>
 		<meta charset="utf8" />
 		<style>
+			::-webkit-scrollbar {
+				width: 8px;
+				height: 8px;
+			}
+
+			::-webkit-scrollbar-track {
+				background: #2e2e2e;
+			}
+
+			::-webkit-scrollbar-thumb {
+				background-color: #5a5a5a;
+				border-radius: 10px;
+				border: 2px solid #2e2e2e;
+			}
+
+			::-webkit-scrollbar-thumb:hover {
+				background-color: #8a8a8a;
+			}
 			body,
 			html {
 				background-color: #333;
 				color: white;
+				height: 100%;
+			}
+			body {
+				display: flex;
+				flex-direction: column;
 			}
 			* {
 				margin: 0;
 				padding: 0;
+				box-sizing: border-box;
 			}
 			.node {
 				margin-top: 2px;
@@ -27,6 +51,7 @@
 				display: flex;
 				align-items: center;
 			}
+			.node.selected > p,
 			.node > p:hover {
 				background-color: rgb(105, 57, 151);
 				cursor: pointer;
@@ -58,25 +83,74 @@
 				width: 100%;
 				list-style-type: none;
 			}
-			#content {
+			#content,
+			#inspecting,
+			#header {
 				width: 100vw;
+				padding: 8px;
+				box-sizing: border-box;
+				font-size: 14px;
 			}
-			.button {
+			#inspecting {
+				margin-top: auto;
+			}
+			.inspect-button {
+				background: none;
 				margin-left: auto;
 				cursor: pointer;
 				outline: none;
 				border: none;
-				padding: 2px;
+				font-family: inherit;
 			}
-			.button:hover {
-				background-color: #ddd;
+			.inspect-button:hover {
 				outline: none;
 				border: none;
+			}
+
+			h3 {
+				font-size: 16px;
+				color: #ddd;
+			}
+			#inspecting-attrs {
+				padding-left: 20px;
+				margin-bottom: 12px;
+				max-height: 180px;
+				overflow-y: overlay;
+			}
+			.property {
+				color: rgb(194 139 247);
+			}
+			#inspecting > hr {
+				margin-bottom: 16px;
+			}
+			.value {
+				color: white;
+			}
+			.link {
+				color: lightblue;
+				cursor: pointer;
+				font-size: 12px;
+			}
+			.link:hover {
+				text-decoration: underline;
 			}
 		</style>
 	</head>
 	<body>
 		<script src="./scripts/panel.js"></script>
+		<div id="header">
+			<h3>Mithril Devtools</h3>
+			<hr />
+		</div>
 		<div id="content"></div>
+		<div id="inspecting" style="display: none">
+			<h3 id="inspecting-title">Header</h3>
+			<hr />
+			<b>Attrs</b>
+			<div id="inspecting-attrs">
+				<div><span class="property">onclick</span>: <span class="value">function onclick() {}</span></div>
+			</div>
+			<span id="find-in-dom" class="link">🔗find in DOM</span>
+		</div>
 	</body>
 </html>
