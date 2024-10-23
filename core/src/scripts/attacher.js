@@ -1,12 +1,17 @@
 const copyTree = (tree, location = []) => {
 	if (!tree) return null;
 	let tag = null;
+	let isComponent = false;
 	if (typeof tree.tag === 'string') {
 		tag = tree.tag + (tree.tag === '#' ? 'text: ' + JSON.stringify(tree.children) : '');
 	} else if (typeof tree.tag === 'function') {
 		tag = tree.tag.name;
+		window.__mithril_devtools.components[JSON.stringify(location)] = tree.tag;
+		isComponent = true;
 	} else if (typeof tree.tag === 'object') {
 		tag = 'unknown component';
+		window.__mithril_devtools.components[JSON.stringify(location)] = tree.tag.view;
+		isComponent = true;
 	}
 
 	let children = [];
@@ -27,8 +32,27 @@ const copyTree = (tree, location = []) => {
 		};
 		tree.children.forEach(pushChild);
 	}
+	let attrs = JSON.stringify(
+		tree.attrs,
+		(key, value) => {
+			if (typeof value === 'function') {
+				return value.toString();
+			} else if (value && typeof value === 'object') {
+				if (value.constructor.name === 'Object') {
+					return value;
+				}
 
-	return { tag, children, location };
+				return { ...value, __type_internal: value.constructor.name };
+			} else if (typeof value === 'number' || typeof value === 'string' || typeof value === 'boolean' || value === null || value === undefined) {
+				return value;
+			} else {
+				return 'Value Unknown';
+			}
+		},
+		4
+	);
+
+	return { tag, attrs, isComponent, children, location };
 };
 
 const TreeViewer = (view) => {
@@ -37,6 +61,7 @@ const TreeViewer = (view) => {
 	function onchange(args) {
 		console.log(args);
 		dom = args.dom;
+		window.__mithril_devtools.components = {};
 		const tree = copyTree(args);
 		window.postMessage({ type: 'mithril_devtools_to', content: JSON.stringify(tree) });
 	}
@@ -88,6 +113,10 @@ const TreeViewer = (view) => {
 					highlightEl.remove();
 				}
 			}
+			// else if (action === 'inspect_compo') {
+			// 	const node = getNodeFromLocation(payload);
+			// 	inspect(node);
+			// }
 		}
 	};
 	return {

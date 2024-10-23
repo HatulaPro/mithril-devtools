@@ -21,6 +21,11 @@
 				font-size: 14px;
 				padding: 0px 4px;
 				background-color: rgb(77, 33, 118);
+				text-overflow: ellipsis;
+				text-wrap: nowrap;
+				overflow: hidden;
+				display: flex;
+				align-items: center;
 			}
 			.node > p:hover {
 				background-color: rgb(105, 57, 151);
@@ -29,11 +34,25 @@
 			.node.closed > ul {
 				display: none;
 			}
-			.node:not(.childless).closed > p::before {
-				content: '🔺 ';
+			.flipper {
+				width: 0;
+				height: 0;
+				border-left: 7px solid transparent;
+				border-right: 7px solid transparent;
+				margin-right: 6px;
+				margin-left: 2px;
 			}
-			.node:not(.childless):not(.closed) > p::before {
-				content: '🔻 ';
+			.flipper.closed {
+				border-bottom: 11px solid white;
+			}
+			.flipper:not(.closed) {
+				border-top: 11px solid white;
+			}
+			.flipper.closed:hover {
+				border-bottom: 11px solid #ddd;
+			}
+			.flipper:not(.closed):hover {
+				border-top: 11px solid #ddd;
 			}
 			ul {
 				width: 100%;
@@ -41,6 +60,18 @@
 			}
 			#content {
 				width: 100vw;
+			}
+			.button {
+				margin-left: auto;
+				cursor: pointer;
+				outline: none;
+				border: none;
+				padding: 2px;
+			}
+			.button:hover {
+				background-color: #ddd;
+				outline: none;
+				border: none;
 			}
 		</style>
 	</head>

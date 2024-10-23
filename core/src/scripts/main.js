@@ -2,6 +2,7 @@ chrome.devtools.panels.create('Mithril Devtools', 'icon.png', 'panel.html', func
 	let tree = null;
 	let panelWindow = null;
 	let tabId = null;
+	let inspecting = null;
 	chrome.runtime.onMessage.addListener((message, { tab }) => {
 		tree = JSON.parse(message);
 		tabId = tab.id;
@@ -25,31 +26,59 @@ chrome.devtools.panels.create('Mithril Devtools', 'icon.png', 'panel.html', func
 
 		return el;
 	}
-	function buildTreePart(tree) {
+	function buildTreePart(treeNode) {
 		return m(
 			'li',
 			{
-				className: `node ${tree.children.length === 0 && 'childless'}`,
+				className: 'node',
 			},
 			m(
 				'p',
 				{
 					onmouseover: () => {
-						chrome.tabs.sendMessage(tabId, { type: 'mithril_devtools_from', action: 'hover', payload: tree.location });
+						chrome.tabs.sendMessage(tabId, { type: 'mithril_devtools_from', action: 'hover', payload: treeNode.location });
 					},
 					onmouseout: () => {
 						chrome.tabs.sendMessage(tabId, { type: 'mithril_devtools_from', action: 'mouseout', payload: null });
 					},
-					onclick: (e) => {
-						if (tree.children.length > 0) {
-							e.currentTarget.parentElement.classList.toggle('closed');
-						}
-					},
 				},
-				tree.tag
+				treeNode.children.length > 0 &&
+					m('span', {
+						className: 'flipper',
+						onclick: (e) => {
+							if (treeNode.children.length > 0) {
+								e.currentTarget.parentElement.parentElement.classList.toggle('closed');
+								e.currentTarget.classList.toggle('closed');
+							}
+						},
+					}),
+				m(
+					'span',
+					{
+						title: treeNode.tag,
+					},
+					treeNode.tag
+				),
+				treeNode.isComponent &&
+					m(
+						'button',
+						{
+							className: 'button',
+							onclick: (e) => {
+								e.stopPropagation();
+								chrome.devtools.inspectedWindow.eval(`inspect(window.__mithril_devtools.components['${JSON.stringify(treeNode.location)}'])`);
+							},
+						},
+						'inspect'
+					)
 			),
-			tree.children.length > 0 && m('ul', {}, ...tree.children.map((child) => buildTreePart(child, tabId)))
+			treeNode.children.length > 0 && m('ul', {}, ...treeNode.children.map((child) => buildTreePart(child, tabId)))
 		);
+	}
+	function inspectingPart() {
+		if (!inspecting) return null;
+
+		return m('p', {}, `tag: ${inspecting.tag}`, m('br', {}), 'attrs: ', m('br', {}), inspecting.attrs);
 	}
 	function render(tree, content) {
 		content.innerHTML = '';
@@ -59,7 +88,7 @@ chrome.devtools.panels.create('Mithril Devtools', 'icon.png', 'panel.html', func
 			return;
 		}
 
-		content.appendChild(m('ul', {}, buildTreePart(tree, tabId)));
+		content.appendChild(m('div', {}, m('ul', {}, buildTreePart(tree, tabId)), inspectingPart()));
 	}
 	panel.onShown.addListener((extPanelWindow) => {
 		panelWindow = extPanelWindow;

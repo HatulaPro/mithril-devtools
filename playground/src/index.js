@@ -1,12 +1,31 @@
 import * as m from 'mithril';
 
+class OtherClass {
+	constructor() {
+		this.g = 7;
+	}
+}
+
+class MyTestClass {
+	constructor() {
+		this.x = 1;
+		this.y = 2;
+		this.otherElement = new OtherClass();
+	}
+
+	getWowza() {
+		return 4;
+	}
+}
+
 let count = 0;
 const Child = () => ({
 	view: () => m('div', { onclick: () => count++ }, `Child: ${count}`),
 });
 
 const Child2 = () => ({
-	view: () => m('div', { style: 'color: red;' }, m('b', 'Child'), ' ', [[[m('u', '2'), 'hello']], m(Child, { text: 'child props' })]),
+	view: () =>
+		m('div', { style: 'color: red;' }, m('b', 'Child'), ' ', [[[m('u', '2'), 'hello']], m(Child, { text: 'child props', test: new MyTestClass() })]),
 });
 
 const App = () => {
