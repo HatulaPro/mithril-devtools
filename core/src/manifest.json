@@ -9,12 +9,7 @@
 		}
 	},
 	"devtools_page": "main.html",
-	"background": {
-		"service_worker": "scripts/background.js",
-		"type": "module"
-	},
-	"permissions": ["storage", "declarativeContent", "activeTab", "runtime", "scripting", "tabs", "debugger", "notifications", "http://*/*", "https://*/*"],
-
+	"permissions": ["activeTab", "tabs"],
 	"content_scripts": [
 		{
 			"matches": ["<all_urls>"],
