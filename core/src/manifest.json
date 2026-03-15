@@ -9,7 +9,7 @@
 		}
 	},
 	"devtools_page": "main.html",
-	"permissions": ["activeTab", "tabs"],
+	"permissions": ["activeTab", "tabs", "contextMenus"],
 	"content_scripts": [
 		{
 			"matches": ["<all_urls>"],

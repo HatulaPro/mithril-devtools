@@ -15,6 +15,7 @@ const copyTree = (tree, location = []) => {
 		const locationStr = JSON.stringify(location);
 		window.__mithril_devtools.components[locationStr] = tree.tag.view;
 		window.__mithril_devtools.dom_nodes[locationStr] = tree.dom;
+
 		isComponent = true;
 	}
 
@@ -69,7 +70,7 @@ const TreeViewer = (view) => {
 		window.__mithril_devtools.components = {};
 		window.__mithril_devtools.dom_nodes = {};
 		const tree = copyTree(args);
-		window.postMessage({ type: 'mithril_devtools_to', content: JSON.stringify(tree) });
+		window.postMessage({ type: 'mithril_devtools_to', content: { type: 'tree', value: JSON.stringify(tree) } });
 	}
 
 	const getNodeFromLocation = (location) => {
@@ -106,6 +107,23 @@ const TreeViewer = (view) => {
 		document.body.appendChild(div);
 	};
 
+	const handleContextMenu = (e) => {
+		const target = e.target;
+		let best = null;
+		for (const [locationStr, node] of Object.entries(window.__mithril_devtools.dom_nodes || {})) {
+			if (!node) continue;
+			if (node === target || (node.contains && node.contains(target))) {
+				if (!best) best = locationStr;
+				else {
+					const prevLen = JSON.parse(best).length;
+					const curLen = JSON.parse(locationStr).length;
+					if (curLen > prevLen) best = locationStr;
+				}
+			}
+		}
+		window.postMessage({ type: 'mithril_devtools_to', content: { type: 'contextmenu_target', location: best && JSON.parse(best) } });
+	};
+
 	const handleMessage = (message) => {
 		if (message.data.type === 'mithril_devtools_from') {
 			const { action, payload } = message.data;
@@ -132,9 +150,11 @@ const TreeViewer = (view) => {
 	return {
 		oninit() {
 			window.addEventListener('message', handleMessage);
+			window.addEventListener('contextmenu', handleContextMenu, true);
 		},
 		onremove() {
 			window.removeEventListener('message', handleMessage);
+			window.removeEventListener('contextmenu', handleContextMenu, true);
 		},
 		oncreate: onchange,
 		onupdate: onchange,

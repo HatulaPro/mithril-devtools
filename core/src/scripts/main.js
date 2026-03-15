@@ -2,12 +2,30 @@ chrome.devtools.panels.create('Mithril Devtools', 'icon.png', 'panel.html', func
 	let tree = null;
 	let panelWindow = null;
 	let inspecting = null;
+	let pendingContextMenuLocation = null;
+
+	chrome.contextMenus.create({ id: 'mithril_reveal', title: 'Reveal in Mithril Devtools', contexts: ['all'] });
+
+	chrome.contextMenus.onClicked.addListener((info) => {
+		if (info.menuItemId === 'mithril_reveal') {
+			if (tree) {
+				inspecting = findNodeByLocation(pendingContextMenuLocation, tree);
+				render(tree, panelWindow.document.querySelector('#content'));
+
+				pendingContextMenuLocation = null;
+			}
+		}
+	});
 	chrome.tabs.sendMessage(chrome.devtools.inspectedWindow.tabId, { type: 'mithril_devtools_from', action: 'open' });
 
 	chrome.runtime.onMessage.addListener((message) => {
-		tree = JSON.parse(message);
-		if (panelWindow && tree) {
-			render(tree, panelWindow.document.querySelector('#content'));
+		if (message.type === 'tree') {
+			tree = JSON.parse(message.value);
+			if (panelWindow && tree) {
+				render(tree, panelWindow.document.querySelector('#content'));
+			}
+		} else if (message.type === 'contextmenu_target') {
+			pendingContextMenuLocation = message.location;
 		}
 	});
 	function m(tag, opts, ...children) {
@@ -165,6 +183,16 @@ chrome.devtools.panels.create('Mithril Devtools', 'icon.png', 'panel.html', func
 			if (result) return result;
 		}
 
+		return null;
+	}
+
+	function findNodeByLocation(location, tree) {
+		if (!tree) return null;
+		if (JSON.stringify(tree.location) === JSON.stringify(location)) return tree;
+		for (const child of tree.children || []) {
+			const result = findNodeByLocation(location, child);
+			if (result) return result;
+		}
 		return null;
 	}
 	function render(tree, content) {

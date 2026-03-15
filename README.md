@@ -68,4 +68,4 @@ Please do.
 - [ ] Removing mounted elements
 - [ ] Improved viewing of attributes in the devtools panel
 - [ ] Viewing DOM nodes in the devtools panel
-- [ ] Right click -> See in devtools for DOM elements
+- [x] Right click -> See in devtools for DOM elements
