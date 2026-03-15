@@ -13,13 +13,19 @@
 	"content_scripts": [
 		{
 			"matches": ["<all_urls>"],
-			"js": ["scripts/inject.js"],
+			"js": ["scripts/injection.js"],
+			"run_at": "document_start",
+			"world": "MAIN"
+		},
+		{
+			"matches": ["<all_urls>"],
+			"js": ["scripts/communicator.js"],
 			"run_at": "document_start"
 		}
 	],
 	"web_accessible_resources": [
 		{
-			"resources": ["scripts/attacher.js"],
+			"resources": ["scripts/injection.js"],
 			"matches": ["<all_urls>"]
 		}
 	]

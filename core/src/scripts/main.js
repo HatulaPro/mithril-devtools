@@ -1,11 +1,11 @@
 chrome.devtools.panels.create('Mithril Devtools', 'icon.png', 'panel.html', function (panel) {
 	let tree = null;
 	let panelWindow = null;
-	let tabId = null;
 	let inspecting = null;
-	chrome.runtime.onMessage.addListener((message, { tab }) => {
+	chrome.tabs.sendMessage(chrome.devtools.inspectedWindow.tabId, { type: 'mithril_devtools_from', action: 'open' });
+
+	chrome.runtime.onMessage.addListener((message) => {
 		tree = JSON.parse(message);
-		tabId = tab.id;
 		if (panelWindow && tree) {
 			render(tree, panelWindow.document.querySelector('#content'));
 		}
@@ -50,10 +50,14 @@ chrome.devtools.panels.create('Mithril Devtools', 'icon.png', 'panel.html', func
 				'p',
 				{
 					onmouseover: () => {
-						chrome.tabs.sendMessage(tabId, { type: 'mithril_devtools_from', action: 'hover', payload: treeNode.location });
+						chrome.tabs.sendMessage(chrome.devtools.inspectedWindow.tabId, {
+							type: 'mithril_devtools_from',
+							action: 'hover',
+							payload: treeNode.location,
+						});
 					},
 					onmouseout: () => {
-						chrome.tabs.sendMessage(tabId, { type: 'mithril_devtools_from', action: 'mouseout', payload: null });
+						chrome.tabs.sendMessage(chrome.devtools.inspectedWindow.tabId, { type: 'mithril_devtools_from', action: 'mouseout', payload: null });
 					},
 					onclick: () => {
 						inspecting = treeNode;
@@ -76,7 +80,7 @@ chrome.devtools.panels.create('Mithril Devtools', 'icon.png', 'panel.html', func
 					{
 						title: treeNode.tag,
 					},
-					treeNode.tag
+					treeNode.tag,
 				),
 				treeNode.isComponent &&
 					m(
@@ -88,10 +92,10 @@ chrome.devtools.panels.create('Mithril Devtools', 'icon.png', 'panel.html', func
 								chrome.devtools.inspectedWindow.eval(`inspect(window.__mithril_devtools.components['${JSON.stringify(treeNode.location)}'])`);
 							},
 						},
-						'see source'
-					)
+						'see source',
+					),
 			),
-			treeNodeComponentChildren.length > 0 && m('ul', {}, ...treeNodeComponentChildren.map((child) => buildTreePart(child, tabId)))
+			treeNodeComponentChildren.length > 0 && m('ul', {}, ...treeNodeComponentChildren.map((child) => buildTreePart(child))),
 		);
 	}
 	function renderInspecting() {
@@ -135,7 +139,7 @@ chrome.devtools.panels.create('Mithril Devtools', 'icon.png', 'panel.html', func
 		} else {
 			for (const [key, value] of attrs) {
 				inspectingAttrs.appendChild(
-					m('div', {}, m('span', { className: 'property' }, key), ': ', m('span', { className: 'value' }, showAttrValue(value)))
+					m('div', {}, m('span', { className: 'property' }, key), ': ', m('span', { className: 'value' }, showAttrValue(value))),
 				);
 			}
 		}
@@ -171,18 +175,16 @@ chrome.devtools.panels.create('Mithril Devtools', 'icon.png', 'panel.html', func
 			return;
 		}
 
-		content.appendChild(m('div', {}, m('ul', {}, buildTreePart(tree, tabId))));
+		content.appendChild(m('div', {}, m('ul', {}, buildTreePart(tree))));
 		renderInspecting();
 	}
 	panel.onShown.addListener((extPanelWindow) => {
 		panelWindow = extPanelWindow;
-		if (tabId) {
-			// Update inspecting node in case it was removed
-			if (inspecting) {
-				inspecting = findNodeInTree(inspecting, tree);
-			}
-			render(tree, panelWindow.document.querySelector('#content'), tabId);
+		// Update inspecting node in case it was removed
+		if (inspecting) {
+			inspecting = findNodeInTree(inspecting, tree);
 		}
+		render(tree, panelWindow.document.querySelector('#content'));
 	});
 	panel.onHidden.addListener(() => {
 		panelWindow = null;

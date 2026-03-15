@@ -53,7 +53,7 @@ const copyTree = (tree, location = []) => {
 				return 'Value Unknown';
 			}
 		},
-		4
+		4,
 	);
 
 	return { tag, attrs, isComponent, children, location };
@@ -61,9 +61,11 @@ const copyTree = (tree, location = []) => {
 
 const TreeViewer = (view) => {
 	let dom = null;
+	let lastChange = null;
 
 	function onchange(args) {
 		dom = args.dom;
+		lastChange = args;
 		window.__mithril_devtools.components = {};
 		window.__mithril_devtools.dom_nodes = {};
 		const tree = copyTree(args);
@@ -80,10 +82,16 @@ const TreeViewer = (view) => {
 		return current;
 	};
 
-	let highlightEl = null;
+	const removeHighlight = () => {
+		const highlightElement = document.getElementById('mithril_devtools_highlighter');
+		highlightElement?.remove();
+	};
+
 	const highlight = (el) => {
+		removeHighlight();
 		const rect = el.getBoundingClientRect();
-		const div = highlightEl || document.createElement('div');
+		const div = document.createElement('div');
+		div.id = 'mithril_devtools_highlighter';
 		div.style.outline = '2px solid purple';
 		div.style.background = '#7834de';
 		div.style.opacity = '0.2';
@@ -92,10 +100,10 @@ const TreeViewer = (view) => {
 		div.style.height = `${rect.height}px`;
 		div.style.left = `${rect.left}px`;
 		div.style.top = `${rect.top}px`;
+		div.style.zIndex = 99999999;
 		div.style.position = 'fixed';
 
 		document.body.appendChild(div);
-		highlightEl = div;
 	};
 
 	const handleMessage = (message) => {
@@ -113,8 +121,10 @@ const TreeViewer = (view) => {
 					range.detach();
 				}
 			} else if (action === 'mouseout') {
-				if (highlightEl) {
-					highlightEl.remove();
+				removeHighlight();
+			} else if (action === 'open') {
+				if (lastChange) {
+					onchange(lastChange);
 				}
 			}
 		}
@@ -134,7 +144,6 @@ const TreeViewer = (view) => {
 
 window.__mithril_devtools = {
 	attach: (view) => {
-		const res = TreeViewer(view);
-		return res;
+		return TreeViewer(view);
 	},
 };
