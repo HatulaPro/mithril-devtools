@@ -18,6 +18,6 @@
 		"webpack-dev-server": "^5.1.0"
 	},
 	"dependencies": {
-		"mithril": "^2.2.2"
+		"mithril": "^1.1.7"
 	}
 }
