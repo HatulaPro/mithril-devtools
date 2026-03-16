@@ -147,18 +147,20 @@ const TreeViewer = (view) => {
 			}
 		}
 	};
-	return {
-		oninit() {
-			window.addEventListener('message', handleMessage);
-			window.addEventListener('contextmenu', handleContextMenu, true);
-		},
-		onremove() {
-			window.removeEventListener('message', handleMessage);
-			window.removeEventListener('contextmenu', handleContextMenu, true);
-		},
-		oncreate: onchange,
-		onupdate: onchange,
-		view,
+	return function MithrilDevtoolsRoot() {
+		return {
+			oninit() {
+				window.addEventListener('message', handleMessage);
+				window.addEventListener('contextmenu', handleContextMenu, true);
+			},
+			onremove() {
+				window.removeEventListener('message', handleMessage);
+				window.removeEventListener('contextmenu', handleContextMenu, true);
+			},
+			oncreate: onchange,
+			onupdate: onchange,
+			view,
+		};
 	};
 };
 
