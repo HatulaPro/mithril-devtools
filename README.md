@@ -1,5 +1,7 @@
 # Mithril Devtools
 
+https://github.com/user-attachments/assets/903ab10a-dfbc-4a6c-bc0d-6f54a16d7b54
+
 This is a chrome extension made for debugging mithril.js more easily. It is still very unstable and a lot of work has to be done.
 
 ## How To Use
