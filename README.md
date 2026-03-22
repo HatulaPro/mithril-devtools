@@ -10,8 +10,8 @@ The extension is attached using `window.__mithril_devtools`. So you'll have to a
 Make sure not to rely on it in prod, as it is only added by the extension.
 
 ```js
-const { component, detach } = window.__mithril_devtools.attach(() => m(Layout), 'Main App');
 // Mounting
+const { component, detach } = window.__mithril_devtools.attach(() => m(Layout), 'Main App');
 m.mount(document.getElementById('app'), component);
 
 // Unmounting
