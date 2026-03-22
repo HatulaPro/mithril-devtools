@@ -57,7 +57,10 @@ const copyTree = (tree: MithrilNode, location: number[] = []): TreeNode | null =
 		pushed++;
 	}
 
-	if (Array.isArray(tree.children)) {
+	// Only process children for non-components.
+	// Component children are passed to the view function and already
+	// incorporated into the instance tree via vnode.children.
+	if (!isComponent && Array.isArray(tree.children)) {
 		const pushChild = (child: any) => {
 			if (child.tag === '[') {
 				child.children.forEach(pushChild);
