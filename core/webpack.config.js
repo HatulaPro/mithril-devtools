@@ -1,37 +1,41 @@
 const path = require('path');
-const WebpackCopyPlugin = require('copy-webpack-plugin');
+const CopyWebpackPlugin = require('copy-webpack-plugin');
 
 module.exports = {
-	entry: './src/index.js',
+	entry: {
+		'scripts/main': './src/scripts/main.ts',
+		'scripts/injection': './src/scripts/injection.ts',
+		'scripts/communicator': './src/scripts/communicator.ts',
+		'scripts/panel': './src/scripts/panel.ts',
+	},
 	output: {
-		filename: 'index.js',
+		filename: '[name].js',
 		path: path.resolve(__dirname, 'dist'),
 		clean: true,
 	},
-	devtool: false,
+	devtool: 'source-map',
+	resolve: {
+		extensions: ['.ts', '.js'],
+	},
 	module: {
 		rules: [
 			{
-				test: /\.js$/,
+				test: /\.ts$/,
 				exclude: /node_modules/,
 				use: {
-					loader: 'babel-loader',
+					loader: 'ts-loader',
 				},
 			},
 		],
 	},
 	plugins: [
-		new WebpackCopyPlugin({
-			patterns: [{ from: 'src/manifest.json', to: '' }],
-		}),
-		new WebpackCopyPlugin({
-			patterns: [{ from: 'src/devtools.html', to: '' }],
-		}),
-		new WebpackCopyPlugin({
-			patterns: [{ from: 'src/panel.html', to: '' }],
-		}),
-		new WebpackCopyPlugin({
-			patterns: [{ from: 'src/devtools.js', to: '' }],
+		new CopyWebpackPlugin({
+			patterns: [
+				{ from: 'src/manifest.json', to: '' },
+				{ from: 'src/main.html', to: '' },
+				{ from: 'src/panel.html', to: '' },
+				{ from: 'src/icons', to: 'icons' },
+			],
 		}),
 	],
 	mode: 'development',

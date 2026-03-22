@@ -1,4 +1,35 @@
-const copyTree = (tree, location = []) => {
+interface MithrilNode {
+	tag?: string | Function | { view: Function };
+	children?: any[];
+	attrs?: Record<string, any>;
+	dom?: HTMLElement | Text;
+	instance?: MithrilNode;
+}
+
+interface TreeNode {
+	tag: string | null;
+	attrs: string;
+	isComponent: boolean;
+	children: (TreeNode | null)[];
+	location: number[];
+}
+
+interface DevToolsGlobal {
+	components: Record<string, any>;
+	dom_nodes: Record<string, HTMLElement | Text | null>;
+	attach: (view: any) => any;
+}
+
+declare global {
+	interface Window {
+		__mithril_devtools: DevToolsGlobal;
+	}
+}
+
+// Make this file a module
+export {};
+
+const copyTree = (tree: MithrilNode, location: number[] = []): TreeNode | null => {
 	if (!tree) return null;
 	let tag = null;
 	let isComponent = false;
@@ -8,18 +39,18 @@ const copyTree = (tree, location = []) => {
 		tag = tree.tag.name;
 		const locationStr = JSON.stringify(location);
 		window.__mithril_devtools.components[locationStr] = tree.tag;
-		window.__mithril_devtools.dom_nodes[locationStr] = tree.dom;
+		window.__mithril_devtools.dom_nodes[locationStr] = tree.dom || null;
 		isComponent = true;
 	} else if (typeof tree.tag === 'object') {
 		tag = 'unknown component';
 		const locationStr = JSON.stringify(location);
 		window.__mithril_devtools.components[locationStr] = tree.tag.view;
-		window.__mithril_devtools.dom_nodes[locationStr] = tree.dom;
+		window.__mithril_devtools.dom_nodes[locationStr] = tree.dom || null;
 
 		isComponent = true;
 	}
 
-	let children = [];
+	let children: (TreeNode | null)[] = [];
 	let pushed = 0;
 	if (tree.instance) {
 		children.push(copyTree(tree.instance, location));
@@ -27,7 +58,7 @@ const copyTree = (tree, location = []) => {
 	}
 
 	if (Array.isArray(tree.children)) {
-		const pushChild = (child) => {
+		const pushChild = (child: any) => {
 			if (child.tag === '[') {
 				child.children.forEach(pushChild);
 			} else {
@@ -60,11 +91,11 @@ const copyTree = (tree, location = []) => {
 	return { tag, attrs, isComponent, children, location };
 };
 
-const TreeViewer = (view) => {
-	let dom = null;
-	let lastChange = null;
+const TreeViewer = (view: any) => {
+	let dom: HTMLElement | Text | null = null;
+	let lastChange: any = null;
 
-	function onchange(args) {
+	function onchange(args: any) {
 		dom = args.dom;
 		lastChange = args;
 		window.__mithril_devtools.components = {};
@@ -73,14 +104,15 @@ const TreeViewer = (view) => {
 		window.postMessage({ type: 'mithril_devtools_to', content: { type: 'tree', value: JSON.stringify(tree) } });
 	}
 
-	const getNodeFromLocation = (location) => {
-		let current = dom;
+	const getNodeFromLocation = (location: number[]): ChildNode | null => {
+		let current: ChildNode | HTMLElement | Text | null = dom;
 
 		for (const index of location) {
+			if (!current || !('childNodes' in current)) return null;
 			current = current.childNodes[index];
 		}
 
-		return current;
+		return current || null;
 	};
 
 	const removeHighlight = () => {
@@ -88,7 +120,7 @@ const TreeViewer = (view) => {
 		highlightElement?.remove();
 	};
 
-	const highlight = (el) => {
+	const highlight = (el: HTMLElement | Range) => {
 		removeHighlight();
 		const rect = el.getBoundingClientRect();
 		const div = document.createElement('div');
@@ -101,14 +133,14 @@ const TreeViewer = (view) => {
 		div.style.height = `${rect.height}px`;
 		div.style.left = `${rect.left}px`;
 		div.style.top = `${rect.top}px`;
-		div.style.zIndex = 99999999;
+		div.style.zIndex = '99999999';
 		div.style.position = 'fixed';
 
 		document.body.appendChild(div);
 	};
 
-	const handleContextMenu = (e) => {
-		const target = e.target;
+	const handleContextMenu = (e: MouseEvent) => {
+		const target = e.target as HTMLElement;
 		let best = null;
 		for (const [locationStr, node] of Object.entries(window.__mithril_devtools.dom_nodes || {})) {
 			if (!node) continue;
@@ -124,16 +156,16 @@ const TreeViewer = (view) => {
 		window.postMessage({ type: 'mithril_devtools_to', content: { type: 'contextmenu_target', location: best && JSON.parse(best) } });
 	};
 
-	const handleMessage = (message) => {
+	const handleMessage = (message: MessageEvent) => {
 		if (message.data.type === 'mithril_devtools_from') {
 			const { action, payload } = message.data;
 
 			if (action === 'hover') {
 				const node = getNodeFromLocation(payload);
-				if (node instanceof HTMLElement) {
+				if (node && node instanceof HTMLElement) {
 					highlight(node);
-				} else if (node instanceof Text) {
-					const range = document.createRange(node);
+				} else if (node && node instanceof Text) {
+					const range = document.createRange();
 					range.selectNode(node);
 					highlight(range);
 					range.detach();
@@ -165,6 +197,8 @@ const TreeViewer = (view) => {
 };
 
 window.__mithril_devtools = {
+	components: {},
+	dom_nodes: {},
 	attach: (view) => {
 		return TreeViewer(view);
 	},

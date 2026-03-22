@@ -20,10 +20,12 @@ I've not yet uploaded it to the chrome store, so you'll have to add it yourself:
 
 ```bash
 git clone https://github.com/HatulaPro/mithril-devtools.git
-cd mithril-devtools/core/src # <- This directory contains all the files needed. There is no build step.
+cd mithril-devtools/core
+npm install
+npm run build
 ```
 
-Load the unpacked extension. Follow [this](https://developer.chrome.com/docs/extensions/get-started/tutorial/hello-world#load-unpacked) for more information.
+Then load the unpacked extension from the `core/dist` folder. Follow [this](https://developer.chrome.com/docs/extensions/get-started/tutorial/hello-world#load-unpacked) for more information.
 
 ### Limitations
 

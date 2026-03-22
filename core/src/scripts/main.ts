@@ -1,8 +1,24 @@
+interface TreeNode {
+	tag: string | null;
+	attrs: string;
+	isComponent: boolean;
+	children: (TreeNode | null)[];
+	location: number[];
+}
+
+interface DevToolsMessage {
+	type: string;
+	value?: string;
+	action?: string;
+	payload?: any;
+	location?: number[];
+}
+
 chrome.devtools.panels.create('Mithril Devtools', 'icon.png', 'panel.html', function (panel) {
-	let tree = null;
-	let panelWindow = null;
-	let inspecting = null;
-	let pendingContextMenuLocation = null;
+	let tree: TreeNode | null = null;
+	let panelWindow: Window | null = null;
+	let inspecting: TreeNode | null = null;
+	let pendingContextMenuLocation: number[] | null = null;
 
 	chrome.contextMenus.create({ id: 'mithril_reveal', title: 'Reveal in Mithril Devtools', contexts: ['all'] });
 
@@ -10,7 +26,7 @@ chrome.devtools.panels.create('Mithril Devtools', 'icon.png', 'panel.html', func
 		if (info.menuItemId === 'mithril_reveal') {
 			if (tree) {
 				inspecting = findNodeByLocation(pendingContextMenuLocation, tree);
-				render(tree, panelWindow.document.querySelector('#content'));
+				render(tree, panelWindow!.document.querySelector('#content'));
 
 				pendingContextMenuLocation = null;
 			}
@@ -18,38 +34,39 @@ chrome.devtools.panels.create('Mithril Devtools', 'icon.png', 'panel.html', func
 	});
 	chrome.tabs.sendMessage(chrome.devtools.inspectedWindow.tabId, { type: 'mithril_devtools_from', action: 'open' });
 
-	chrome.runtime.onMessage.addListener((message) => {
+	chrome.runtime.onMessage.addListener((message: DevToolsMessage) => {
 		if (message.type === 'tree') {
-			tree = JSON.parse(message.value);
+			tree = JSON.parse(message.value || '{}');
 			if (panelWindow && tree) {
-				render(tree, panelWindow.document.querySelector('#content'));
+				render(tree, panelWindow!.document.querySelector('#content'));
 			}
 		} else if (message.type === 'contextmenu_target') {
-			pendingContextMenuLocation = message.location;
+			pendingContextMenuLocation = message.location || null;
 		}
 	});
-	function m(tag, opts, ...children) {
-		const el = panelWindow.document.createElement(tag);
+	function m(tag: string, opts: Record<string, any>, ...children: (HTMLElement | string | false | null | undefined)[]): HTMLElement {
+		const el = panelWindow!.document.createElement(tag);
 		for (const [key, value] of Object.entries(opts)) {
-			el[key] = value;
+			(el as any)[key] = value;
 		}
 		for (const child of children) {
 			if (!child) continue;
 			if (typeof child === 'string') {
-				el.appendChild(panelWindow.document.createTextNode(child));
-			} else {
+				el.appendChild(panelWindow!.document.createTextNode(child));
+			} else if (child) {
 				el.appendChild(child);
 			}
 		}
 
 		return el;
 	}
-	function buildTreePart(treeNode) {
-		const treeNodeComponentChildren = [];
-		const pushChildren = (node) => {
-			if (!node.children) return;
+	function buildTreePart(treeNode: TreeNode): HTMLElement {
+		const treeNodeComponentChildren: TreeNode[] = [];
+		const pushChildren = (node: TreeNode | null) => {
+			if (!node || !node.children) return;
 
 			for (const child of node.children) {
+				if (!child) continue;
 				if (child.isComponent) {
 					treeNodeComponentChildren.push(child);
 				} else {
@@ -79,17 +96,17 @@ chrome.devtools.panels.create('Mithril Devtools', 'icon.png', 'panel.html', func
 					},
 					onclick: () => {
 						inspecting = treeNode;
-						render(tree, panelWindow.document.querySelector('#content'));
+						render(tree, panelWindow!.document.querySelector('#content'));
 					},
 				},
 				treeNodeComponentChildren.length > 0 &&
 					m('span', {
 						className: 'flipper',
-						onclick: (e) => {
+						onclick: (e: MouseEvent) => {
 							e.stopPropagation();
 							if (treeNodeComponentChildren.length > 0) {
-								e.currentTarget.parentElement.parentElement.classList.toggle('closed');
-								e.currentTarget.classList.toggle('closed');
+								(e.currentTarget as HTMLElement).parentElement!.parentElement!.classList.toggle('closed');
+								(e.currentTarget as HTMLElement).classList.toggle('closed');
 							}
 						},
 					}),
@@ -105,7 +122,7 @@ chrome.devtools.panels.create('Mithril Devtools', 'icon.png', 'panel.html', func
 						'button',
 						{
 							className: 'inspect-button link',
-							onclick: (e) => {
+							onclick: (e: Event) => {
 								e.stopPropagation();
 								chrome.devtools.inspectedWindow.eval(`inspect(window.__mithril_devtools.components['${JSON.stringify(treeNode.location)}'])`);
 							},
@@ -113,23 +130,23 @@ chrome.devtools.panels.create('Mithril Devtools', 'icon.png', 'panel.html', func
 						'see source',
 					),
 			),
-			treeNodeComponentChildren.length > 0 && m('ul', {}, ...treeNodeComponentChildren.map((child) => buildTreePart(child))),
+			treeNodeComponentChildren.length > 0 && m('ul', {}, ...treeNodeComponentChildren.filter((c) => c !== null).map((child) => buildTreePart(child))),
 		);
 	}
-	function renderInspecting() {
-		const inspectingContainer = panelWindow.document.querySelector('#inspecting');
+	function renderInspecting(): void {
+		const inspectingContainer = panelWindow!.document.querySelector('#inspecting') as HTMLElement;
 		if (!inspecting) {
 			inspectingContainer.style.display = 'none';
 			return;
 		}
 
 		inspectingContainer.style.display = 'block';
-		const inspectingTitle = panelWindow.document.querySelector('#inspecting-title');
-		inspectingTitle.innerText = inspecting.tag;
-		const inspectingAttrs = panelWindow.document.querySelector('#inspecting-attrs');
+		const inspectingTitle = panelWindow!.document.querySelector('#inspecting-title') as HTMLElement;
+		inspectingTitle.innerText = inspecting!.tag || 'Unknown';
+		const inspectingAttrs = panelWindow!.document.querySelector('#inspecting-attrs') as HTMLElement;
 		inspectingAttrs.innerHTML = '';
 
-		const showAttrValue = (value) => {
+		const showAttrValue = (value: any): string => {
 			if (value === null) return 'null';
 			if (value === undefined) return 'undefined';
 			if (Number.isNaN(value)) return 'NaN';
@@ -151,7 +168,7 @@ chrome.devtools.panels.create('Mithril Devtools', 'icon.png', 'panel.html', func
 			return JSON.stringify(value);
 		};
 
-		const attrs = Object.entries(JSON.parse(inspecting.attrs));
+		const attrs = Object.entries(JSON.parse(inspecting!.attrs));
 		if (attrs.length === 0) {
 			inspectingAttrs.innerText = 'This component has no attrs.';
 		} else {
@@ -162,22 +179,24 @@ chrome.devtools.panels.create('Mithril Devtools', 'icon.png', 'panel.html', func
 			}
 		}
 
-		const findInDom = panelWindow.document.querySelector('#find-in-dom');
+		const findInDom = panelWindow!.document.querySelector('#find-in-dom') as HTMLElement;
 		findInDom.onclick = () => {
 			if (inspecting) {
 				chrome.devtools.inspectedWindow.eval(`inspect(window.__mithril_devtools.dom_nodes['${JSON.stringify(inspecting.location)}'])`);
 			}
 		};
 	}
-	function compareNodes(nodeA, nodeB) {
+	function compareNodes(nodeA: TreeNode, nodeB: TreeNode): boolean {
 		return (
 			nodeA === nodeB ||
 			(nodeA.tag === nodeB.tag && nodeA.location.length === nodeB.location.length && JSON.stringify(nodeA.location) === JSON.stringify(nodeB.location))
 		);
 	}
-	function findNodeInTree(node, tree) {
+	function findNodeInTree(node: TreeNode, tree: TreeNode | null): TreeNode | null {
+		if (!tree) return null;
 		if (compareNodes(node, tree)) return node;
 		for (const child of tree.children) {
+			if (!child) continue;
 			const result = findNodeInTree(node, child);
 
 			if (result) return result;
@@ -186,7 +205,7 @@ chrome.devtools.panels.create('Mithril Devtools', 'icon.png', 'panel.html', func
 		return null;
 	}
 
-	function findNodeByLocation(location, tree) {
+	function findNodeByLocation(location: number[] | null, tree: TreeNode | null): TreeNode | null {
 		if (!tree) return null;
 		if (JSON.stringify(tree.location) === JSON.stringify(location)) return tree;
 		for (const child of tree.children || []) {
@@ -195,18 +214,19 @@ chrome.devtools.panels.create('Mithril Devtools', 'icon.png', 'panel.html', func
 		}
 		return null;
 	}
-	function render(tree, content) {
+	function render(tree: TreeNode | null, content: Element | null): void {
+		if (!content) return;
 		content.innerHTML = '';
 
 		if (!tree || !tree.tag) {
-			content.innerText = 'can not parse tree';
+			(content as HTMLElement).innerText = 'can not parse tree';
 			return;
 		}
 
 		content.appendChild(m('div', {}, m('ul', {}, buildTreePart(tree))));
 		renderInspecting();
 	}
-	panel.onShown.addListener((extPanelWindow) => {
+	panel.onShown.addListener((extPanelWindow: Window) => {
 		panelWindow = extPanelWindow;
 		// Update inspecting node in case it was removed
 		if (inspecting) {
