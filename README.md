@@ -10,10 +10,13 @@ The extension is attached using `window.__mithril_devtools`. So you'll have to a
 Make sure not to rely on it in prod, as it is only added by the extension.
 
 ```js
-m.mount(
-	document.getElementById('app'),
-	window.__mithril_devtools.attach(() => m(Layout)),
-);
+const { component, detach } = window.__mithril_devtools.attach(() => m(Layout), 'Main App');
+// Mounting
+m.mount(document.getElementById('app'), component);
+
+// Unmounting
+m.mount(document.getElementById('app'), null);
+detach();
 ```
 
 I've not yet uploaded it to the chrome store, so you'll have to add it yourself:
@@ -68,8 +71,8 @@ Please do.
 
 ## TODOs
 
-- [ ] Multi mounts support
-- [ ] Removing mounted elements
+- [x] Multi mounts support
+- [x] Removing mounted elements
 - [ ] Improved viewing of attributes in the devtools panel
 - [ ] Viewing DOM nodes in the devtools panel
 - [x] Right click -> See in devtools for DOM elements

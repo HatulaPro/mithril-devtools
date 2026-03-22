@@ -11,6 +11,10 @@ A Chrome extension for debugging and developing [Mithril.js](https://mithril.js.
 - Build for production: `npm run build`
 - Build for development: `npm run dev`
 - Watch mode for development: `npm run watch`
+- `core/src/scripts`:
+    - `main.ts` - runs the devtools tab. Uses mithril.
+    - `injection.ts` - injected to the user's window. Adds the callback that parses the mithril tree.
+    - `communicator.ts` - passes data between the two.
 
 **Playground app (`playground` folder):**
 

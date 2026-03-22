@@ -98,10 +98,9 @@ function Layout() {
 	};
 }
 
-m.mount(
-	document.getElementById('app'),
-	window.__mithril_devtools.attach(() => m(Layout)),
-);
+// Main layout mount with name
+const mainMount = window.__mithril_devtools.attach(() => m(Layout), 'Main App');
+m.mount(document.getElementById('app'), mainMount.component);
 
 const containerId = 'many-mounts';
 const buttonId = 'add-mount';
@@ -122,19 +121,22 @@ function addMount() {
 	node.addEventListener('click', () => removeMount(node));
 	document.getElementById(containerId).appendChild(node);
 
-	const component = {
-		view() {
-			return m('div', `${createdIndex}`);
-		},
-	};
+	// Use devtools attach with a name for each dynamic mount
+	// attach() expects a view function that returns vnodes
+	const mountResult = window.__mithril_devtools.attach(() => m('div', `Dynamic ${createdIndex}`), `Dynamic #${createdIndex}`);
 
-	m.mount(node, component);
-	mounts.push({ node, createdIndex });
+	m.mount(node, mountResult.component);
+	mounts.push({ node, createdIndex, detach: mountResult.detach });
 }
 
 function removeMount(node) {
 	const idx = mounts.findIndex((r) => r.node === node);
 	if (idx === -1) return;
+	const mountRecord = mounts[idx];
+	// Call detach to notify devtools
+	if (mountRecord.detach) {
+		mountRecord.detach();
+	}
 	m.mount(node, null);
 	node.remove();
 	mounts.splice(idx, 1);
