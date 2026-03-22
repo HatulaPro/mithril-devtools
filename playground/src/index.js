@@ -89,9 +89,9 @@ function Layout() {
 		view() {
 			return m('.app', [
 				m('h1', 'Mithril Debug Playground'),
-				m(Card, { title: 'Counter (closure component)' }, m(Counter)),
-				m(Card, { title: 'Toggle (class component)' }, m(Toggle)),
-				m(Card, { title: 'Many data types' }, m(ManyDataTypes)),
+				// m(Card, { title: 'Counter (closure component)' }, m(Counter)),
+				// m(Card, { title: 'Toggle (class component)' }, m(Toggle)),
+				// m(Card, { title: 'Many data types' }, m(ManyDataTypes)),
 				m(Card, { title: 'Inline component' }, m(InlineDemo)),
 			]);
 		},

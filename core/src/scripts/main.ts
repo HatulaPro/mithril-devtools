@@ -1,3 +1,5 @@
+import m from 'mithril';
+
 interface TreeNode {
 	tag: string | null;
 	attrs: string;
@@ -26,9 +28,8 @@ chrome.devtools.panels.create('Mithril Devtools', 'icon.png', 'panel.html', func
 		if (info.menuItemId === 'mithril_reveal') {
 			if (tree) {
 				inspecting = findNodeByLocation(pendingContextMenuLocation, tree);
-				render(tree, panelWindow!.document.querySelector('#content'));
-
 				pendingContextMenuLocation = null;
+				m.redraw();
 			}
 		}
 	});
@@ -37,171 +38,30 @@ chrome.devtools.panels.create('Mithril Devtools', 'icon.png', 'panel.html', func
 	chrome.runtime.onMessage.addListener((message: DevToolsMessage) => {
 		if (message.type === 'tree') {
 			tree = JSON.parse(message.value || '{}');
+			console.log(tree);
 			if (panelWindow && tree) {
-				render(tree, panelWindow!.document.querySelector('#content'));
+				m.redraw();
 			}
 		} else if (message.type === 'contextmenu_target') {
 			pendingContextMenuLocation = message.location || null;
 		}
 	});
-	function m(tag: string, opts: Record<string, any>, ...children: (HTMLElement | string | false | null | undefined)[]): HTMLElement {
-		const el = panelWindow!.document.createElement(tag);
-		for (const [key, value] of Object.entries(opts)) {
-			(el as any)[key] = value;
-		}
-		for (const child of children) {
-			if (!child) continue;
-			if (typeof child === 'string') {
-				el.appendChild(panelWindow!.document.createTextNode(child));
-			} else if (child) {
-				el.appendChild(child);
-			}
-		}
 
-		return el;
-	}
-	function buildTreePart(treeNode: TreeNode): HTMLElement {
-		const treeNodeComponentChildren: TreeNode[] = [];
-		const pushChildren = (node: TreeNode | null) => {
-			if (!node || !node.children) return;
-
-			for (const child of node.children) {
-				if (!child) continue;
-				if (child.isComponent) {
-					treeNodeComponentChildren.push(child);
-				} else {
-					pushChildren(child);
-				}
-			}
-		};
-		pushChildren(treeNode);
-
-		return m(
-			'li',
-			{
-				className: `node ${inspecting && compareNodes(inspecting, treeNode) && 'selected'}`,
-			},
-			m(
-				'p',
-				{
-					onmouseover: () => {
-						chrome.tabs.sendMessage(chrome.devtools.inspectedWindow.tabId, {
-							type: 'mithril_devtools_from',
-							action: 'hover',
-							payload: treeNode.location,
-						});
-					},
-					onmouseout: () => {
-						chrome.tabs.sendMessage(chrome.devtools.inspectedWindow.tabId, { type: 'mithril_devtools_from', action: 'mouseout', payload: null });
-					},
-					onclick: () => {
-						inspecting = treeNode;
-						render(tree, panelWindow!.document.querySelector('#content'));
-					},
-				},
-				treeNodeComponentChildren.length > 0 &&
-					m('span', {
-						className: 'flipper',
-						onclick: (e: MouseEvent) => {
-							e.stopPropagation();
-							if (treeNodeComponentChildren.length > 0) {
-								(e.currentTarget as HTMLElement).parentElement!.parentElement!.classList.toggle('closed');
-								(e.currentTarget as HTMLElement).classList.toggle('closed');
-							}
-						},
-					}),
-				m(
-					'span',
-					{
-						title: treeNode.tag,
-					},
-					treeNode.tag,
-				),
-				treeNode.isComponent &&
-					m(
-						'button',
-						{
-							className: 'inspect-button link',
-							onclick: (e: Event) => {
-								e.stopPropagation();
-								chrome.devtools.inspectedWindow.eval(`inspect(window.__mithril_devtools.components['${JSON.stringify(treeNode.location)}'])`);
-							},
-						},
-						'see source',
-					),
-			),
-			treeNodeComponentChildren.length > 0 && m('ul', {}, ...treeNodeComponentChildren.filter((c) => c !== null).map((child) => buildTreePart(child))),
-		);
-	}
-	function renderInspecting(): void {
-		const inspectingContainer = panelWindow!.document.querySelector('#inspecting') as HTMLElement;
-		if (!inspecting) {
-			inspectingContainer.style.display = 'none';
-			return;
-		}
-
-		inspectingContainer.style.display = 'block';
-		const inspectingTitle = panelWindow!.document.querySelector('#inspecting-title') as HTMLElement;
-		inspectingTitle.innerText = inspecting!.tag || 'Unknown';
-		const inspectingAttrs = panelWindow!.document.querySelector('#inspecting-attrs') as HTMLElement;
-		inspectingAttrs.innerHTML = '';
-
-		const showAttrValue = (value: any): string => {
-			if (value === null) return 'null';
-			if (value === undefined) return 'undefined';
-			if (Number.isNaN(value)) return 'NaN';
-			if (value === Infinity) return 'Infinity';
-			if (value === -Infinity) return '-Infinity';
-			if (typeof value === 'bigint') return `${value.toString()}n`;
-			if (['string', 'number', 'boolean'].includes(typeof value)) {
-				return JSON.stringify(value);
-			}
-
-			if (value.__type_internal) {
-				if (value.__type_internal === 'function') {
-					return `function ${value.name || 'anonymous_func'}() {}`;
-				} else {
-					return `${value.__type_internal} {}`;
-				}
-			}
-
-			return JSON.stringify(value);
-		};
-
-		const attrs = Object.entries(JSON.parse(inspecting!.attrs));
-		if (attrs.length === 0) {
-			inspectingAttrs.innerText = 'This component has no attrs.';
-		} else {
-			for (const [key, value] of attrs) {
-				inspectingAttrs.appendChild(
-					m('div', {}, m('span', { className: 'property' }, key), ': ', m('span', { className: 'value' }, showAttrValue(value))),
-				);
-			}
-		}
-
-		const findInDom = panelWindow!.document.querySelector('#find-in-dom') as HTMLElement;
-		findInDom.onclick = () => {
-			if (inspecting) {
-				chrome.devtools.inspectedWindow.eval(`inspect(window.__mithril_devtools.dom_nodes['${JSON.stringify(inspecting.location)}'])`);
-			}
-		};
-	}
 	function compareNodes(nodeA: TreeNode, nodeB: TreeNode): boolean {
 		return (
 			nodeA === nodeB ||
 			(nodeA.tag === nodeB.tag && nodeA.location.length === nodeB.location.length && JSON.stringify(nodeA.location) === JSON.stringify(nodeB.location))
 		);
 	}
+
 	function findNodeInTree(node: TreeNode, tree: TreeNode | null): TreeNode | null {
 		if (!tree) return null;
 		if (compareNodes(node, tree)) return node;
 		for (const child of tree.children) {
 			if (!child) continue;
 			const result = findNodeInTree(node, child);
-
 			if (result) return result;
 		}
-
 		return null;
 	}
 
@@ -214,27 +74,192 @@ chrome.devtools.panels.create('Mithril Devtools', 'icon.png', 'panel.html', func
 		}
 		return null;
 	}
-	function render(tree: TreeNode | null, content: Element | null): void {
-		if (!content) return;
-		content.innerHTML = '';
 
-		if (!tree || !tree.tag) {
-			(content as HTMLElement).innerText = 'can not parse tree';
-			return;
+	function showAttrValue(value: any): string {
+		if (value === null) return 'null';
+		if (value === undefined) return 'undefined';
+		if (Number.isNaN(value)) return 'NaN';
+		if (value === Infinity) return 'Infinity';
+		if (value === -Infinity) return '-Infinity';
+		if (typeof value === 'bigint') return `${value.toString()}n`;
+		if (['string', 'number', 'boolean'].includes(typeof value)) {
+			return JSON.stringify(value);
 		}
-
-		content.appendChild(m('div', {}, m('ul', {}, buildTreePart(tree))));
-		renderInspecting();
+		if (value.__type_internal) {
+			if (value.__type_internal === 'function') {
+				return `function ${value.name || 'anonymous_func'}() {}`;
+			} else {
+				return `${value.__type_internal} {}`;
+			}
+		}
+		return JSON.stringify(value);
 	}
+
+	const TreeNodeView: m.Component<{ node: TreeNode }> = {
+		view(vnode) {
+			const treeNode = vnode.attrs.node;
+			const treeNodeComponentChildren: TreeNode[] = [];
+
+			const pushChildren = (node: TreeNode | null) => {
+				if (!node || !node.children) return;
+				for (const child of node.children) {
+					if (!child) continue;
+					if (child.isComponent) {
+						treeNodeComponentChildren.push(child);
+					} else {
+						pushChildren(child);
+					}
+				}
+			};
+			pushChildren(treeNode);
+
+			return m(
+				'li',
+				{ class: `node ${inspecting && compareNodes(inspecting, treeNode) ? 'selected' : ''}` },
+				m(
+					'p',
+					{
+						onmouseover: () => {
+							chrome.tabs.sendMessage(chrome.devtools.inspectedWindow.tabId, {
+								type: 'mithril_devtools_from',
+								action: 'hover',
+								payload: treeNode.location,
+							});
+						},
+						onmouseout: () => {
+							chrome.tabs.sendMessage(chrome.devtools.inspectedWindow.tabId, {
+								type: 'mithril_devtools_from',
+								action: 'mouseout',
+								payload: null,
+							});
+						},
+						onclick: () => {
+							inspecting = treeNode;
+						},
+					},
+					treeNodeComponentChildren.length > 0 &&
+						m('span', {
+							class: 'flipper',
+							onclick: (e: MouseEvent) => {
+								e.stopPropagation();
+								const target = e.currentTarget as HTMLElement;
+								target.parentElement!.parentElement!.classList.toggle('closed');
+								target.classList.toggle('closed');
+							},
+						}),
+					m('span', { title: treeNode.tag }, treeNode.tag),
+					treeNode.isComponent &&
+						m(
+							'button',
+							{
+								class: 'inspect-button link',
+								onclick: (e: Event) => {
+									e.stopPropagation();
+									chrome.devtools.inspectedWindow.eval(
+										`inspect(window.__mithril_devtools.components['${JSON.stringify(treeNode.location)}'])`,
+									);
+									chrome.tabs.sendMessage(chrome.devtools.inspectedWindow.tabId, {
+										type: 'mithril_devtools_from',
+										action: 'mouseout',
+										payload: null,
+									});
+								},
+							},
+							'see source',
+						),
+				),
+				treeNodeComponentChildren.length > 0 &&
+					m(
+						'ul',
+						treeNodeComponentChildren.map((child) => m(TreeNodeView, { node: child })),
+					),
+			);
+		},
+	};
+
+	const ContentView: m.Component = {
+		view() {
+			if (!tree) {
+				return 'can not parse tree';
+			}
+			return m('div', m('ul', m(TreeNodeView, { node: tree })));
+		},
+	};
+
+	const InspectingView: m.Component = {
+		view() {
+			if (!inspecting) {
+				return m('div');
+			}
+
+			const attrs = Object.entries(JSON.parse(inspecting.attrs));
+
+			return m(
+				'div',
+				{ style: { display: 'block' } },
+				m('h3#inspecting-title', inspecting.tag || 'Unknown'),
+				m('hr'),
+				m('b', 'Attrs'),
+				m(
+					'div#inspecting-attrs',
+					attrs.length === 0
+						? 'This component has no attrs.'
+						: attrs.map(([key, value]) => m('div', m('span.property', key), ': ', m('span.value', showAttrValue(value)))),
+				),
+				m(
+					'span#find-in-dom.link',
+					{
+						onclick: () => {
+							if (inspecting) {
+								chrome.devtools.inspectedWindow.eval(`inspect(window.__mithril_devtools.dom_nodes['${JSON.stringify(inspecting.location)}'])`);
+							}
+						},
+					},
+					'find in DOM',
+				),
+			);
+		},
+	};
+
+	function mount(): void {
+		if (!panelWindow) return;
+
+		const content = panelWindow.document.querySelector('#content');
+		const inspectingEl = panelWindow.document.querySelector('#inspecting');
+
+		if (content) {
+			m.mount(content, ContentView);
+		}
+		if (inspectingEl) {
+			m.mount(inspectingEl, InspectingView);
+		}
+	}
+
+	function unmount(): void {
+		if (!panelWindow) return;
+
+		const content = panelWindow.document.querySelector('#content');
+		const inspectingEl = panelWindow.document.querySelector('#inspecting');
+
+		if (content) {
+			m.mount(content, null);
+		}
+		if (inspectingEl) {
+			m.mount(inspectingEl, null);
+		}
+	}
+
 	panel.onShown.addListener((extPanelWindow: Window) => {
 		panelWindow = extPanelWindow;
 		// Update inspecting node in case it was removed
 		if (inspecting) {
 			inspecting = findNodeInTree(inspecting, tree);
 		}
-		render(tree, panelWindow.document.querySelector('#content'));
+		mount();
 	});
+
 	panel.onHidden.addListener(() => {
+		unmount();
 		panelWindow = null;
 	});
 });

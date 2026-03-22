@@ -11,7 +11,11 @@
   },
   "author": "",
   "license": "ISC",
+  "dependencies": {
+    "mithril": "^1.1.7"
+  },
   "devDependencies": {
+    "@types/mithril": "^1.1.16",
     "@types/chrome": "^0.1.38",
     "babel-loader": "^9.2.1",
     "copy-webpack-plugin": "^12.0.2",
