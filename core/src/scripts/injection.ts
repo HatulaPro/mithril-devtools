@@ -77,7 +77,7 @@ const copyTree = (tree: MithrilNode, mount: Mount, location: number[] = []): Tre
 	// incorporated into the instance tree via vnode.children.
 	if (!isComponent && Array.isArray(tree.children)) {
 		const pushChild = (child: any) => {
-			if (child.tag === '[') {
+			if (child?.tag === '[') {
 				child.children.forEach(pushChild);
 			} else {
 				children.push(copyTree(child, mount, [...location, pushed]));

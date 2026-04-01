@@ -57,8 +57,18 @@ function ManyDataTypes() {
 	return {
 		view(vnode) {
 			return m('div', { style: 'color: red;' }, m('b', 'Child'), ' ', [
-				[[m('u', '2'), 'hello']],
+				0,
+				1.5,
+				NaN,
+				Infinity,
+				null,
+				undefined,
+				false,
+				['nested', null, [undefined, 'string after undefined'], [1, 2, [3, 4]]],
+				m('u', 'underlined'),
 				m(Child, { text: 'child props', number: 4, boolean: true, func: () => 132, a: 1, b: 2, c: 3, test: new MyTestClass() }),
+				() => 'function child',
+				[m('span', 'array vnode'), 'text', false],
 			]);
 		},
 	};
