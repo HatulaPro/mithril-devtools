@@ -2,7 +2,7 @@
 	"manifest_version": 3,
 	"name": "Mithril Devtools",
 	"description": "Easier debugging for mithril developers",
-	"version": "0.0.1",
+	"version": "0.0.2",
 	"action": {
 		"icons": {
 			"16": "icons/icon16.png",
