@@ -1,32 +1,33 @@
-import m from 'mithril';
+import m, { Component } from 'mithril';
+import type { InjectionToDevToolsMessage, SerializedAttrValue, TreeNode } from './types';
 
-interface TreeNode {
-	tag: string | null;
-	attrs: string;
-	isComponent: boolean;
-	children: (TreeNode | null)[];
-	location: number[];
+function showAttrValue(value: SerializedAttrValue): m.Children {
+	if (value === null) return 'null';
+	if (typeof value === 'number' && Number.isNaN(value)) return 'NaN';
+	if (value === Infinity) return 'Infinity';
+	if (value === -Infinity) return '-Infinity';
+	if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+		return JSON.stringify(value);
+	}
+	if ('__type_internal' in value) {
+		if (value.__type_internal === 'function') {
+			return `function ${value.name || 'anonymous_func'}() {}`;
+		} else if (value.__type_internal === 'object') {
+			return `${value.name} {}`;
+		}
+	}
+	return JSON.stringify(value);
 }
 
 interface MountState {
 	id: string;
 	name: string;
-	tree: TreeNode | null;
-}
-
-interface DevToolsMessage {
-	type: string;
-	value?: string;
-	action?: string;
-	payload?: any;
-	location?: number[];
-	mountId?: string;
-	mountName?: string;
+	tree: TreeNode;
 }
 
 chrome.devtools.panels.create('Mithril Devtools', 'icon.png', 'panel.html', function (panel) {
 	const mounts: Map<string, MountState> = new Map();
-	let activeMountId: string | null = null;
+	let activeMountId: string = '';
 	let panelWindow: Window | null = null;
 	let inspecting: TreeNode | null = null;
 	let pendingContextMenuLocation: { mountId: string; location: number[] } | null = null;
@@ -43,7 +44,6 @@ chrome.devtools.panels.create('Mithril Devtools', 'icon.png', 'panel.html', func
 	chrome.contextMenus.onClicked.addListener((info) => {
 		if (info.menuItemId === 'mithril_reveal') {
 			if (pendingContextMenuLocation) {
-				// Switch to the mount that contains the context menu target
 				activeMountId = pendingContextMenuLocation.mountId;
 				const tree = getActiveTree();
 				if (tree) {
@@ -56,56 +56,57 @@ chrome.devtools.panels.create('Mithril Devtools', 'icon.png', 'panel.html', func
 	});
 	chrome.tabs.sendMessage(chrome.devtools.inspectedWindow.tabId, { type: 'mithril_devtools_from', action: 'open' });
 
-	chrome.runtime.onMessage.addListener((message: DevToolsMessage) => {
-		if (message.type === 'tree' && message.mountId) {
-			const tree = JSON.parse(message.value || '{}');
+	chrome.runtime.onMessage.addListener((message: InjectionToDevToolsMessage) => {
+		if (message.type === 'tree') {
+			const tree = JSON.parse(message.value) as TreeNode;
 			const existing = mounts.get(message.mountId);
 			if (existing) {
 				existing.tree = tree;
 			} else {
 				mounts.set(message.mountId, {
 					id: message.mountId,
-					name: message.mountName || message.mountId,
+					name: message.mountName,
 					tree,
 				});
 			}
-			// Auto-select first mount
 			if (!activeMountId) {
 				activeMountId = message.mountId;
 			}
 			if (panelWindow) {
 				m.redraw();
 			}
-		} else if (message.type === 'mount_added' && message.mountId) {
+		} else if (message.type === 'mount_added') {
 			if (!mounts.has(message.mountId)) {
 				mounts.set(message.mountId, {
 					id: message.mountId,
-					name: message.mountName || message.mountId,
-					tree: null,
+					name: message.mountName,
+					tree: { tag: null, attrs: '{}', isComponent: false, children: [], location: [] },
 				});
 			}
-			// Auto-select first mount
 			if (!activeMountId) {
 				activeMountId = message.mountId;
 			}
 			if (panelWindow) {
 				m.redraw();
 			}
-		} else if (message.type === 'mount_removed' && message.mountId) {
+		} else if (message.type === 'mount_removed') {
 			mounts.delete(message.mountId);
-			// If active mount was removed, select another
 			if (activeMountId === message.mountId) {
 				const remaining = Array.from(mounts.keys());
-				activeMountId = remaining.length > 0 ? remaining[0] : null;
-				inspecting = null;
+				if (remaining.length > 0) {
+					activeMountId = remaining[0];
+				} else {
+					activeMountId = '';
+					inspecting = null;
+				}
 			}
 			if (panelWindow) {
 				m.redraw();
 			}
-		} else if (message.type === 'contextmenu_target' && message.mountId) {
+		} else if (message.type === 'contextmenu_target') {
 			pendingContextMenuLocation = {
 				mountId: message.mountId,
-				location: message.location || [],
+				location: message.location,
 			};
 		}
 	});
@@ -117,8 +118,7 @@ chrome.devtools.panels.create('Mithril Devtools', 'icon.png', 'panel.html', func
 		);
 	}
 
-	function findNodeInTree(node: TreeNode, tree: TreeNode | null): TreeNode | null {
-		if (!tree) return null;
+	function findNodeInTree(node: TreeNode, tree: TreeNode): TreeNode | null {
 		if (compareNodes(node, tree)) return node;
 		for (const child of tree.children) {
 			if (!child) continue;
@@ -128,43 +128,23 @@ chrome.devtools.panels.create('Mithril Devtools', 'icon.png', 'panel.html', func
 		return null;
 	}
 
-	function findNodeByLocation(location: number[] | null, tree: TreeNode | null): TreeNode | null {
-		if (!tree) return null;
+	function findNodeByLocation(location: number[], tree: TreeNode): TreeNode | null {
 		if (JSON.stringify(tree.location) === JSON.stringify(location)) return tree;
-		for (const child of tree.children || []) {
+		for (const child of tree.children) {
+			if (!child) continue;
 			const result = findNodeByLocation(location, child);
 			if (result) return result;
 		}
 		return null;
 	}
 
-	function showAttrValue(value: any): string {
-		if (value === null) return 'null';
-		if (value === undefined) return 'undefined';
-		if (Number.isNaN(value)) return 'NaN';
-		if (value === Infinity) return 'Infinity';
-		if (value === -Infinity) return '-Infinity';
-		if (typeof value === 'bigint') return `${value.toString()}n`;
-		if (['string', 'number', 'boolean'].includes(typeof value)) {
-			return JSON.stringify(value);
-		}
-		if (value.__type_internal) {
-			if (value.__type_internal === 'function') {
-				return `function ${value.name || 'anonymous_func'}() {}`;
-			} else {
-				return `${value.__type_internal} {}`;
-			}
-		}
-		return JSON.stringify(value);
-	}
-
-	const TreeNodeView: m.Component<{ node: TreeNode }> = {
+	const TreeNodeView: Component<{ node: TreeNode }> = {
 		view(vnode) {
 			const treeNode = vnode.attrs.node;
 			const treeNodeComponentChildren: TreeNode[] = [];
 
-			const pushChildren = (node: TreeNode | null) => {
-				if (!node || !node.children) return;
+			const pushChildren = (node: TreeNode): void => {
+				if (!node.children) return;
 				for (const child of node.children) {
 					if (!child) continue;
 					if (child.isComponent) {
@@ -244,14 +224,13 @@ chrome.devtools.panels.create('Mithril Devtools', 'icon.png', 'panel.html', func
 		},
 	};
 
-	const MountSelector: m.Component = {
+	const MountSelector: Component = {
 		view() {
 			const mountList = Array.from(mounts.values());
 			if (mountList.length === 0) {
 				return null;
 			}
 			if (mountList.length === 1) {
-				// Show mount name but no selector when only one mount
 				return m('span.single-mount-label', mountList[0].name);
 			}
 
@@ -261,7 +240,7 @@ chrome.devtools.panels.create('Mithril Devtools', 'icon.png', 'panel.html', func
 					value: activeMountId,
 					onchange: (e: Event) => {
 						activeMountId = (e.target as HTMLSelectElement).value;
-						inspecting = null; // Clear selection when switching mounts
+						inspecting = null;
 					},
 				},
 				mountList.map((mount) => m('option', { value: mount.id }, mount.name)),
@@ -269,12 +248,15 @@ chrome.devtools.panels.create('Mithril Devtools', 'icon.png', 'panel.html', func
 		},
 	};
 
-	const ContentView: m.Component = {
+	const ContentView: Component = {
 		view() {
-			const tree = getActiveTree();
 			if (mounts.size === 0) {
 				return m('div.no-mounts', 'No Mithril mounts detected. Use window.__mithril_devtools.attach() to register a mount.');
 			}
+			if (!activeMountId || !mounts.has(activeMountId)) {
+				return m('div.no-tree', 'Waiting for tree data...');
+			}
+			const tree = getActiveTree();
 			if (!tree) {
 				return m('div.no-tree', 'Waiting for tree data...');
 			}
@@ -282,13 +264,13 @@ chrome.devtools.panels.create('Mithril Devtools', 'icon.png', 'panel.html', func
 		},
 	};
 
-	const InspectingView: m.Component = {
+	const InspectingView: Component = {
 		view() {
 			if (!inspecting) {
 				return m('div');
 			}
 
-			const attrs = Object.entries(JSON.parse(inspecting.attrs));
+			const attrs: [string, SerializedAttrValue][] = Object.entries(JSON.parse(inspecting.attrs));
 
 			return m(
 				'div',
@@ -357,9 +339,16 @@ chrome.devtools.panels.create('Mithril Devtools', 'icon.png', 'panel.html', func
 
 	panel.onShown.addListener((extPanelWindow: Window) => {
 		panelWindow = extPanelWindow;
-		// Update inspecting node in case it was removed
 		if (inspecting) {
-			inspecting = findNodeInTree(inspecting, getActiveTree());
+			const tree = getActiveTree();
+			if (tree) {
+				const found = findNodeInTree(inspecting, tree);
+				if (found) {
+					inspecting = found;
+				} else {
+					inspecting = null;
+				}
+			}
 		}
 		mount();
 	});

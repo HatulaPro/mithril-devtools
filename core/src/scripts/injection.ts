@@ -1,34 +1,26 @@
-interface MithrilNode {
-	tag?: string | Function | { view: Function };
-	children?: any[];
-	attrs?: Record<string, any>;
-	dom?: HTMLElement | Text;
-	instance?: MithrilNode;
-}
+import m, { Vnode, Component, Attributes, VnodeDOM, Children } from 'mithril';
+import type { TreeNode, InjectionToDevToolsMessage, DevToolsToInjectionMessage, SerializedAttrValue } from './types';
 
-interface TreeNode {
-	tag: string | null;
-	attrs: string;
-	isComponent: boolean;
-	children: (TreeNode | null)[];
-	location: number[];
+interface InternalVnode extends Vnode<Attributes, {}> {
+	instance?: InternalVnode;
+	dom?: HTMLElement | Text;
 }
 
 interface Mount {
 	id: string;
 	name: string;
-	components: Record<string, any>;
+	components: Record<string, Function>;
 	dom_nodes: Record<string, HTMLElement | Text | null>;
 }
 
 interface AttachResult {
-	component: any;
+	component: Component<{}, {}>;
 	detach: () => void;
 }
 
 interface DevToolsGlobal {
 	mounts: Map<string, Mount>;
-	attach: (view: any, name?: string) => AttachResult;
+	attach: (view: (vnode: Vnode<Attributes, {}>) => VnodeDOM<Attributes, {}> | null, name?: string) => AttachResult;
 }
 
 declare global {
@@ -37,67 +29,78 @@ declare global {
 	}
 }
 
-// Make this file a module
 export {};
 
 let mountIdCounter = 0;
 const generateMountId = (): string => `mount-${++mountIdCounter}`;
 
-const copyTree = (tree: MithrilNode, mount: Mount, location: number[] = []): TreeNode | null => {
+const postToDevTools = (content: InjectionToDevToolsMessage): void => {
+	window.postMessage({ type: 'mithril_devtools_to', content });
+};
+
+const copyTree = (tree: InternalVnode, mount: Mount, location: number[] = []): TreeNode | null => {
 	if (!tree) return null;
-	let tag = null;
+	let tag: string | null = null;
 	let isComponent = false;
+
 	if (typeof tree.tag === 'string') {
 		tag = tree.tag + (tree.tag === '#' ? 'text: ' + JSON.stringify(tree.children) : '');
 	} else if (typeof tree.tag === 'function') {
-		// Prefer displayName (set by devtools wrapper) over function name
-		tag = (tree.tag as any).displayName || tree.tag.name || 'Anonymous';
+		tag = (tree.tag as { displayName?: string }).displayName || tree.tag.name || 'Anonymous';
 		const locationStr = JSON.stringify(location);
 		mount.components[locationStr] = tree.tag;
 		mount.dom_nodes[locationStr] = tree.dom || null;
 		isComponent = true;
-	} else if (typeof tree.tag === 'object') {
+	} else if (typeof tree.tag === 'object' && tree.tag !== null) {
 		tag = 'unknown component';
 		const locationStr = JSON.stringify(location);
-		mount.components[locationStr] = tree.tag.view;
+		mount.components[locationStr] = (tree.tag as { view: Function }).view;
 		mount.dom_nodes[locationStr] = tree.dom || null;
-
 		isComponent = true;
 	}
 
-	let children: (TreeNode | null)[] = [];
+	const children: (TreeNode | null)[] = [];
 	let pushed = 0;
 	if (tree.instance) {
 		children.push(copyTree(tree.instance, mount, location));
 		pushed++;
 	}
 
-	// Only process children for non-components.
-	// Component children are passed to the view function and already
-	// incorporated into the instance tree via vnode.children.
 	if (!isComponent && Array.isArray(tree.children)) {
-		const pushChild = (child: any) => {
-			if (child?.tag === '[') {
-				child.children.forEach(pushChild);
-			} else {
-				children.push(copyTree(child, mount, [...location, pushed]));
-				pushed++;
+		const pushChild = (child: Children): void => {
+			if (child === null || child === undefined) return;
+			if (Array.isArray(child)) {
+				child.forEach(pushChild);
+				return;
+			}
+			if (typeof child === 'string' || typeof child === 'number' || typeof child === 'boolean') return;
+			if (typeof child === 'object' && 'tag' in child) {
+				if (child.tag === '[') {
+					const arrChild = child;
+					if (Array.isArray(arrChild.children)) {
+						arrChild.children.forEach(pushChild);
+					}
+				} else {
+					children.push(copyTree(child as InternalVnode, mount, [...location, pushed]));
+					pushed++;
+				}
 			}
 		};
 		tree.children.forEach(pushChild);
 	}
-	let attrs = JSON.stringify(
+
+	const attrs = JSON.stringify(
 		tree.attrs ?? {},
-		(key, value) => {
+		(_key: string, value: SerializedAttrValue): SerializedAttrValue => {
 			if (typeof value === 'function') {
-				return { __type_internal: 'function', name: value.name };
+				const fn = value as (...args: never[]) => unknown;
+				return { __type_internal: 'function', name: fn.name };
 			} else if (value && typeof value === 'object') {
 				if (value.constructor.name === 'Object') {
 					return value;
 				}
-
-				return { __type_internal: value.constructor.name };
-			} else if (typeof value === 'number' || typeof value === 'string' || typeof value === 'boolean' || value === null || value === undefined) {
+				return { __type_internal: 'object', name: value.constructor.name };
+			} else if (typeof value === 'number' || typeof value === 'string' || typeof value === 'boolean' || value === null) {
 				return value;
 			} else {
 				return 'Value Unknown';
@@ -109,30 +112,28 @@ const copyTree = (tree: MithrilNode, mount: Mount, location: number[] = []): Tre
 	return { tag, attrs, isComponent, children, location };
 };
 
-const TreeViewer = (view: any, mount: Mount) => {
-	let dom: HTMLElement | Text | null = null;
-	let lastChange: any = null;
+type LifecycleCallback = (args: VnodeDOM<Attributes, {}>) => void;
 
-	function onchange(args: any) {
-		dom = args.dom;
+const TreeViewer = (view: (vnode: Vnode<Attributes, {}>) => VnodeDOM<Attributes, {}> | null, mount: Mount) => {
+	let dom: HTMLElement | Text | null = null;
+	let lastChange: VnodeDOM<Attributes, {}> | null = null;
+
+	const onchange: LifecycleCallback = (args) => {
+		dom = args.dom as HTMLElement | Text | null;
 		lastChange = args;
-		// Clear this mount's component/dom maps before rebuilding
 		mount.components = {};
 		mount.dom_nodes = {};
-		const tree = copyTree(args, mount);
-		window.postMessage({
-			type: 'mithril_devtools_to',
-			content: {
-				type: 'tree',
-				mountId: mount.id,
-				mountName: mount.name,
-				value: JSON.stringify(tree),
-			},
+		const tree = copyTree(args as InternalVnode, mount);
+		postToDevTools({
+			type: 'tree',
+			mountId: mount.id,
+			mountName: mount.name,
+			value: JSON.stringify(tree),
 		});
-	}
+	};
 
 	const getNodeFromLocation = (location: number[]): ChildNode | null => {
-		let current: ChildNode | HTMLElement | Text | null = dom;
+		let current: ChildNode | null = dom;
 
 		for (const index of location) {
 			if (!current || !('childNodes' in current)) return null;
@@ -142,12 +143,11 @@ const TreeViewer = (view: any, mount: Mount) => {
 		return current || null;
 	};
 
-	const removeHighlight = () => {
-		const highlightElement = document.getElementById('mithril_devtools_highlighter');
-		highlightElement?.remove();
+	const removeHighlight = (): void => {
+		document.getElementById('mithril_devtools_highlighter')?.remove();
 	};
 
-	const highlight = (el: HTMLElement | Range) => {
+	const highlight = (el: HTMLElement | Range): void => {
 		removeHighlight();
 		const rect = el.getBoundingClientRect();
 		const div = document.createElement('div');
@@ -166,10 +166,10 @@ const TreeViewer = (view: any, mount: Mount) => {
 		document.body.appendChild(div);
 	};
 
-	const handleContextMenu = (e: MouseEvent) => {
+	const handleContextMenu = (e: MouseEvent): void => {
 		const target = e.target as HTMLElement;
-		let best = null;
-		for (const [locationStr, node] of Object.entries(mount.dom_nodes || {})) {
+		let best: string | null = null;
+		for (const [locationStr, node] of Object.entries(mount.dom_nodes)) {
 			if (!node) continue;
 			if (node === target || (node.contains && node.contains(target))) {
 				if (!best) best = locationStr;
@@ -180,39 +180,34 @@ const TreeViewer = (view: any, mount: Mount) => {
 				}
 			}
 		}
-		// Only send message if we found a matching node in this mount
 		if (best) {
-			window.postMessage({
-				type: 'mithril_devtools_to',
-				content: {
-					type: 'contextmenu_target',
-					mountId: mount.id,
-					location: JSON.parse(best),
-				},
+			postToDevTools({
+				type: 'contextmenu_target',
+				mountId: mount.id,
+				location: JSON.parse(best),
 			});
 		}
 	};
 
-	const handleMessage = (message: MessageEvent) => {
+	const handleMessage = (message: MessageEvent): void => {
 		if (message.data.type === 'mithril_devtools_from') {
-			const { action, payload, mountId } = message.data;
+			const data = message.data as DevToolsToInjectionMessage;
 
-			// Only respond to messages for this mount
-			if (mountId && mountId !== mount.id) return;
-
-			if (action === 'hover') {
-				const node = getNodeFromLocation(payload);
-				if (node && node instanceof HTMLElement) {
+			if (data.action === 'hover') {
+				if (data.mountId !== mount.id) return;
+				const node = getNodeFromLocation(data.payload);
+				if (node instanceof HTMLElement) {
 					highlight(node);
-				} else if (node && node instanceof Text) {
+				} else if (node instanceof Text) {
 					const range = document.createRange();
 					range.selectNode(node);
 					highlight(range);
 					range.detach();
 				}
-			} else if (action === 'mouseout') {
+			} else if (data.action === 'mouseout') {
+				if (data.mountId !== mount.id) return;
 				removeHighlight();
-			} else if (action === 'open') {
+			} else if (data.action === 'open') {
 				if (lastChange) {
 					onchange(lastChange);
 				}
@@ -223,37 +218,33 @@ const TreeViewer = (view: any, mount: Mount) => {
 	let contextMenuHandler: ((e: MouseEvent) => void) | null = null;
 	let messageHandler: ((e: MessageEvent) => void) | null = null;
 
-	return function MithrilDevtoolsRoot() {
-		return {
-			oninit() {
-				contextMenuHandler = handleContextMenu;
-				messageHandler = handleMessage;
-				window.addEventListener('message', messageHandler);
-				window.addEventListener('contextmenu', contextMenuHandler, true);
-			},
-			onremove() {
-				if (messageHandler) window.removeEventListener('message', messageHandler);
-				if (contextMenuHandler) window.removeEventListener('contextmenu', contextMenuHandler, true);
-				// Notify panel that this mount was removed
-				window.postMessage({
-					type: 'mithril_devtools_to',
-					content: {
-						type: 'mount_removed',
-						mountId: mount.id,
-					},
-				});
-				window.__mithril_devtools.mounts.delete(mount.id);
-			},
-			oncreate: onchange,
-			onupdate: onchange,
-			view,
-		};
+	const component: Component<{}, {}> = {
+		oninit() {
+			contextMenuHandler = handleContextMenu;
+			messageHandler = handleMessage;
+			window.addEventListener('message', messageHandler);
+			window.addEventListener('contextmenu', contextMenuHandler, true);
+		},
+		onremove() {
+			if (messageHandler) window.removeEventListener('message', messageHandler);
+			if (contextMenuHandler) window.removeEventListener('contextmenu', contextMenuHandler, true);
+			postToDevTools({
+				type: 'mount_removed',
+				mountId: mount.id,
+			});
+			window.__mithril_devtools.mounts.delete(mount.id);
+		},
+		oncreate: onchange,
+		onupdate: onchange,
+		view,
 	};
+
+	return component;
 };
 
 window.__mithril_devtools = {
 	mounts: new Map(),
-	attach: (view: any, name?: string): AttachResult => {
+	attach: (view: (vnode: Vnode<Attributes, {}>) => VnodeDOM<Attributes, {}> | null, name?: string): AttachResult => {
 		const id = generateMountId();
 		const mount: Mount = {
 			id,
@@ -263,14 +254,10 @@ window.__mithril_devtools = {
 		};
 		window.__mithril_devtools.mounts.set(id, mount);
 
-		// Notify panel about new mount
-		window.postMessage({
-			type: 'mithril_devtools_to',
-			content: {
-				type: 'mount_added',
-				mountId: id,
-				mountName: mount.name,
-			},
+		postToDevTools({
+			type: 'mount_added',
+			mountId: id,
+			mountName: mount.name,
 		});
 
 		const component = TreeViewer(view, mount);
@@ -279,12 +266,9 @@ window.__mithril_devtools = {
 			component,
 			detach: () => {
 				window.__mithril_devtools.mounts.delete(id);
-				window.postMessage({
-					type: 'mithril_devtools_to',
-					content: {
-						type: 'mount_removed',
-						mountId: id,
-					},
+				postToDevTools({
+					type: 'mount_removed',
+					mountId: id,
 				});
 			},
 		};
