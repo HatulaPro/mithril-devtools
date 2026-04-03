@@ -353,10 +353,20 @@ chrome.devtools.panels.create('Mithril Devtools', 'icon.png', 'panel.html', func
 			return m(
 				'div',
 				{ style: { display: 'block' } },
+				m('div#inspecting-attrs-resizer', {
+					oncreate: bindResizer,
+					onremove: unbindResizer,
+				}),
 				m('h3#inspecting-title', inspecting.tag || 'Unknown'),
 				m('hr'),
 				m('b', 'Attrs'),
-				m('div#inspecting-attrs', showAttrValue(attrs)),
+				m(
+					'div#inspecting-attrs',
+					{
+						style: { height: `${inspectingAttrsHeight}px` },
+					},
+					showAttrValue(attrs),
+				),
 				m(
 					'span#find-in-dom.link',
 					{
@@ -373,6 +383,64 @@ chrome.devtools.panels.create('Mithril Devtools', 'icon.png', 'panel.html', func
 			);
 		},
 	};
+
+	let inspectingAttrsHeight = 180;
+
+	function bindResizer(vnode: m.VnodeDOM): void {
+		if (!panelWindow) return;
+
+		const resizer = vnode.dom as HTMLElement;
+		let startY: number;
+		let startHeight: number;
+		let isDragging = false;
+
+		const onPointerDown = (e: PointerEvent): void => {
+			e.preventDefault();
+			resizer.setPointerCapture(e.pointerId);
+			startY = e.clientY;
+			const attrsContainer = resizer.parentElement?.querySelector('#inspecting-attrs') as HTMLElement | null;
+			startHeight = attrsContainer ? attrsContainer.offsetHeight : inspectingAttrsHeight;
+			isDragging = true;
+		};
+
+		const onPointerMove = (e: PointerEvent): void => {
+			if (!isDragging) return;
+			const delta = startY - e.clientY;
+			inspectingAttrsHeight = Math.max(40, startHeight + delta);
+			const attrsContainer = resizer.parentElement?.querySelector('#inspecting-attrs') as HTMLElement | null;
+			if (attrsContainer) {
+				attrsContainer.style.height = `${inspectingAttrsHeight}px`;
+			}
+		};
+
+		const onPointerUp = (e: PointerEvent): void => {
+			isDragging = false;
+			resizer.releasePointerCapture(e.pointerId);
+		};
+
+		const stopDragging = (): void => {
+			isDragging = false;
+			m.redraw();
+		};
+
+		resizer.addEventListener('pointerdown', onPointerDown);
+		resizer.addEventListener('pointermove', onPointerMove);
+		resizer.addEventListener('pointerup', onPointerUp);
+		resizer.addEventListener('pointercancel', stopDragging);
+		resizer.addEventListener('lostpointercapture', stopDragging);
+
+		(vnode.state as any).cleanup = (): void => {
+			resizer.removeEventListener('pointerdown', onPointerDown);
+			resizer.removeEventListener('pointermove', onPointerMove);
+			resizer.removeEventListener('pointerup', onPointerUp);
+			resizer.removeEventListener('pointercancel', stopDragging);
+			resizer.removeEventListener('lostpointercapture', stopDragging);
+		};
+	}
+
+	function unbindResizer(vnode: m.Vnode): void {
+		(vnode.state as any).cleanup?.();
+	}
 
 	function mount(): void {
 		if (!panelWindow) return;

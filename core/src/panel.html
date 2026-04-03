@@ -113,9 +113,26 @@
 			}
 			#inspecting-attrs {
 				padding-left: 20px;
-				margin-bottom: 12px;
-				max-height: 180px;
+				margin-bottom: 4px;
 				overflow-y: overlay;
+			}
+			#inspecting-attrs-resizer {
+				height: 6px;
+				cursor: ns-resize;
+				display: flex;
+				align-items: center;
+				justify-content: center;
+				margin-bottom: 8px;
+			}
+			#inspecting-attrs-resizer::after {
+				content: '';
+				width: 40px;
+				height: 4px;
+				background: #555;
+				border-radius: 2px;
+			}
+			#inspecting-attrs-resizer:hover::after {
+				background: #888;
 			}
 			.property {
 				color: rgb(194 139 247);
@@ -126,14 +143,33 @@
 			.value {
 				color: white;
 			}
-			.val-null { color: #f48771; }
-			.val-number { color: #b5cea8; }
-			.val-bool { color: #569cd6; }
-			.val-string { color: #ce9178; }
-			.val-func { color: #dcdcaa; font-style: italic; }
-			.val-date { color: #c586c0; }
-			.val-circular { color: #6a6a6a; font-style: italic; }
-			.val-max-depth { color: #6a6a6a; font-style: italic; }
+			.val-null {
+				color: #f48771;
+			}
+			.val-number {
+				color: #b5cea8;
+			}
+			.val-bool {
+				color: #569cd6;
+			}
+			.val-string {
+				color: #ce9178;
+			}
+			.val-func {
+				color: #dcdcaa;
+				font-style: italic;
+			}
+			.val-date {
+				color: #c586c0;
+			}
+			.val-circular {
+				color: #6a6a6a;
+				font-style: italic;
+			}
+			.val-max-depth {
+				color: #6a6a6a;
+				font-style: italic;
+			}
 			.val-toggle {
 				cursor: pointer;
 				user-select: none;
@@ -144,17 +180,29 @@
 				text-align: center;
 				margin-right: 4px;
 			}
-			.val-toggle:hover { color: #fff; }
+			.val-toggle:hover {
+				color: #fff;
+			}
 			.val-type-label {
 				font-weight: 600;
 				font-size: 12px;
 				padding: 1px 6px;
 				border-radius: 3px;
 			}
-			.val-type-array { color: #4ec9b0; background: #1a3a2a; }
-			.val-type-object { color: #9cdcfe; background: #1a2a3a; }
+			.val-type-array {
+				color: #4ec9b0;
+				background: #1a3a2a;
+			}
+			.val-type-object {
+				color: #9cdcfe;
+				background: #1a2a3a;
+			}
 			.val-array-count,
-			.val-object-count { color: #6a6a6a; font-size: 12px; margin-left: 4px; }
+			.val-object-count {
+				color: #6a6a6a;
+				font-size: 12px;
+				margin-left: 4px;
+			}
 			.val-array-content,
 			.val-object-content {
 				margin-left: 18px;
@@ -163,9 +211,17 @@
 				margin-top: 2px;
 			}
 			.val-array-item,
-			.val-object-item { margin: 2px 0; }
-			.val-index { color: #6a6a6a; font-size: 12px; }
-			.val-key { color: #9cdcfe; font-size: 13px; }
+			.val-object-item {
+				margin: 2px 0;
+			}
+			.val-index {
+				color: #6a6a6a;
+				font-size: 12px;
+			}
+			.val-key {
+				color: #9cdcfe;
+				font-size: 13px;
+			}
 			.link {
 				color: lightblue;
 				cursor: pointer;

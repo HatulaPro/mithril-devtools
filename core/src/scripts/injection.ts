@@ -38,7 +38,7 @@ const postToDevTools = (content: InjectionToDevToolsMessage): void => {
 	window.postMessage({ type: 'mithril_devtools_to', content });
 };
 
-const serializeAttrs = (obj: Record<string, unknown>, maxDepth = 4): string => {
+const serializeAttrs = (obj: Record<string, unknown>, maxDepth = 10): string => {
 	const seen = new WeakSet<object>();
 
 	const visit = (value: unknown, depth: number): SerializedAttrValue => {
