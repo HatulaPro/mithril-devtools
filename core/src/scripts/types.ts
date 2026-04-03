@@ -49,7 +49,11 @@ export type SerializedAttrValue =
 	| boolean
 	| null
 	| { __type_internal: 'function'; name: string }
-	| { __type_internal: 'object'; name: string };
+	| { __type_internal: 'object'; name: string; value: Record<any, SerializedAttrValue> }
+	| { __type_internal: 'date'; value: string }
+	| { __type_internal: 'array'; items: SerializedAttrValue[] }
+	| { __type_internal: 'circular' }
+	| { __type_internal: 'max_depth_exceeded' };
 
 export type DevToolsMessage =
 	| { type: 'mithril_devtools_to'; content: InjectionToDevToolsMessage }

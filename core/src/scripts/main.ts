@@ -1,22 +1,100 @@
 import m, { Component } from 'mithril';
 import type { InjectionToDevToolsMessage, SerializedAttrValue, TreeNode } from './types';
 
+const ArrayDisplay: m.Component<{ items: SerializedAttrValue[] }, { isExpanded: boolean }> = {
+	view({ attrs, state }) {
+		const { items } = attrs;
+		if (state.isExpanded === undefined) state.isExpanded = false;
+
+		return m('div.val-array', [
+			m('div.val-array-header', [
+				items.length > 0 &&
+					m(
+						'span.val-toggle',
+						{
+							onclick: () => {
+								state.isExpanded = !state.isExpanded;
+								m.redraw();
+							},
+						},
+						state.isExpanded ? '\u25BC' : '\u25B6',
+					),
+				m('span.val-type-label.val-type-array', 'Array'),
+				m('span.val-array-count', `(${items.length})`),
+			]),
+			state.isExpanded &&
+				items.length > 0 &&
+				m(
+					'div.val-array-content',
+					items.map((item, i) => m('div.val-array-item', m('span.val-index', `[${i}]:`), ' ', showAttrValue(item))),
+				),
+		]);
+	},
+};
+
+const ObjectDisplay: m.Component<{ name: string; value: Record<string, SerializedAttrValue> }, { isExpanded: boolean }> = {
+	view({ attrs, state }) {
+		const { name, value } = attrs;
+		const entries = Object.entries(value);
+		if (state.isExpanded === undefined) state.isExpanded = false;
+
+		return m('div.val-object', [
+			m('div.val-object-header', [
+				entries.length > 0 &&
+					m(
+						'span.val-toggle',
+						{
+							onclick: () => {
+								state.isExpanded = !state.isExpanded;
+								m.redraw();
+							},
+						},
+						state.isExpanded ? '\u25BC' : '\u25B6',
+					),
+				m('span.val-type-label.val-type-object', name),
+				m('span.val-object-count', `(${entries.length})`),
+			]),
+			state.isExpanded &&
+				entries.length > 0 &&
+				m(
+					'div.val-object-content',
+					entries.map(([key, val]) => m('div.val-object-item', m('span.val-key', key), ': ', showAttrValue(val))),
+				),
+		]);
+	},
+};
+
 function showAttrValue(value: SerializedAttrValue): m.Children {
-	if (value === null) return 'null';
-	if (typeof value === 'number' && Number.isNaN(value)) return 'NaN';
-	if (value === Infinity) return 'Infinity';
-	if (value === -Infinity) return '-Infinity';
-	if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
-		return JSON.stringify(value);
-	}
+	if (value === null) return m('span.val-null', 'null');
+	if (typeof value === 'number' && Number.isNaN(value)) return m('span.val-number', 'NaN');
+	if (value === Infinity) return m('span.val-number', 'Infinity');
+	if (value === -Infinity) return m('span.val-number', '-Infinity');
+	if (typeof value === 'boolean') return m('span.val-bool', String(value));
+	if (typeof value === 'number') return m('span.val-number', String(value));
+	if (typeof value === 'string') return m('span.val-string', JSON.stringify(value));
+
 	if ('__type_internal' in value) {
 		if (value.__type_internal === 'function') {
-			return `function ${value.name || 'anonymous_func'}() {}`;
-		} else if (value.__type_internal === 'object') {
-			return `${value.name} {}`;
+			return m('span.val-func', `function ${value.name || 'anonymous'}()`);
+		}
+		if (value.__type_internal === 'object') {
+			return m(ObjectDisplay, { name: value.name, value: value.value });
+		}
+		if (value.__type_internal === 'date') {
+			return m('span.val-date', new Date(value.value).toLocaleString());
+		}
+		if (value.__type_internal === 'array') {
+			return m(ArrayDisplay, { items: value.items });
+		}
+		if (value.__type_internal === 'circular') {
+			return m('span.val-circular', '[Circular]');
+		}
+		if (value.__type_internal === 'max_depth_exceeded') {
+			return m('span.val-max-depth', '[Max Depth]');
 		}
 	}
-	return JSON.stringify(value);
+
+	return m('span.val-string', JSON.stringify(value));
 }
 
 interface MountState {
@@ -270,7 +348,7 @@ chrome.devtools.panels.create('Mithril Devtools', 'icon.png', 'panel.html', func
 				return m('div');
 			}
 
-			const attrs: [string, SerializedAttrValue][] = Object.entries(JSON.parse(inspecting.attrs));
+			const attrs: SerializedAttrValue = JSON.parse(inspecting.attrs);
 
 			return m(
 				'div',
@@ -278,12 +356,7 @@ chrome.devtools.panels.create('Mithril Devtools', 'icon.png', 'panel.html', func
 				m('h3#inspecting-title', inspecting.tag || 'Unknown'),
 				m('hr'),
 				m('b', 'Attrs'),
-				m(
-					'div#inspecting-attrs',
-					attrs.length === 0
-						? 'This component has no attrs.'
-						: attrs.map(([key, value]) => m('div', m('span.property', key), ': ', m('span.value', showAttrValue(value)))),
-				),
+				m('div#inspecting-attrs', showAttrValue(attrs)),
 				m(
 					'span#find-in-dom.link',
 					{

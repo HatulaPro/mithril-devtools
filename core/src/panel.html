@@ -126,6 +126,46 @@
 			.value {
 				color: white;
 			}
+			.val-null { color: #f48771; }
+			.val-number { color: #b5cea8; }
+			.val-bool { color: #569cd6; }
+			.val-string { color: #ce9178; }
+			.val-func { color: #dcdcaa; font-style: italic; }
+			.val-date { color: #c586c0; }
+			.val-circular { color: #6a6a6a; font-style: italic; }
+			.val-max-depth { color: #6a6a6a; font-style: italic; }
+			.val-toggle {
+				cursor: pointer;
+				user-select: none;
+				font-size: 10px;
+				color: #aaa;
+				width: 14px;
+				display: inline-block;
+				text-align: center;
+				margin-right: 4px;
+			}
+			.val-toggle:hover { color: #fff; }
+			.val-type-label {
+				font-weight: 600;
+				font-size: 12px;
+				padding: 1px 6px;
+				border-radius: 3px;
+			}
+			.val-type-array { color: #4ec9b0; background: #1a3a2a; }
+			.val-type-object { color: #9cdcfe; background: #1a2a3a; }
+			.val-array-count,
+			.val-object-count { color: #6a6a6a; font-size: 12px; margin-left: 4px; }
+			.val-array-content,
+			.val-object-content {
+				margin-left: 18px;
+				border-left: 1px solid #444;
+				padding-left: 8px;
+				margin-top: 2px;
+			}
+			.val-array-item,
+			.val-object-item { margin: 2px 0; }
+			.val-index { color: #6a6a6a; font-size: 12px; }
+			.val-key { color: #9cdcfe; font-size: 13px; }
 			.link {
 				color: lightblue;
 				cursor: pointer;

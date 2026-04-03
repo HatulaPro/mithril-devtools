@@ -54,6 +54,10 @@ const Child = () => ({
 });
 
 function ManyDataTypes() {
+	const circular = { name: 'root' };
+	circular.self = circular;
+	circular.nested = { ref: circular, date: new Date('2026-04-03T00:00:00Z') };
+
 	return {
 		view(vnode) {
 			return m('div', { style: 'color: red;' }, m('b', 'Child'), ' ', [
@@ -66,7 +70,22 @@ function ManyDataTypes() {
 				false,
 				['nested', null, [undefined, 'string after undefined'], [1, 2, [3, 4]]],
 				m('u', 'underlined'),
-				m(Child, { text: 'child props', number: 4, boolean: true, func: () => 132, a: 1, b: 2, c: 3, test: new MyTestClass() }),
+				m(Child, {
+					text: 'child props',
+					number: 4,
+					boolean: true,
+					func: () => 132,
+					a: 1,
+					b: 2,
+					c: 3,
+					test: new MyTestClass(),
+					date: new Date('2026-01-15T12:30:00Z'),
+					array: ['hello', 42, true, null, { key: 'value' }, new Date('2025-12-25')],
+					nestedArray: [[1, 2], [3, new Date(), { deep: [4, 5] }]],
+					circularRef: circular,
+					emptyObj: {},
+					emptyArr: [],
+				}),
 				() => 'function child',
 				[m('span', 'array vnode'), 'text', false],
 			]);

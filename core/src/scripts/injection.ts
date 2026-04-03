@@ -38,6 +38,55 @@ const postToDevTools = (content: InjectionToDevToolsMessage): void => {
 	window.postMessage({ type: 'mithril_devtools_to', content });
 };
 
+const serializeAttrs = (obj: Record<string, unknown>, maxDepth = 4): string => {
+	const seen = new WeakSet<object>();
+
+	const visit = (value: unknown, depth: number): SerializedAttrValue => {
+		if (depth > maxDepth) {
+			return { __type_internal: 'max_depth_exceeded' };
+		}
+
+		if (typeof value === 'function') {
+			return { __type_internal: 'function', name: (value as (...args: never[]) => unknown).name };
+		}
+
+		if (value === null || value === undefined) {
+			return null;
+		}
+
+		if (typeof value === 'number' || typeof value === 'string' || typeof value === 'boolean') {
+			return value;
+		}
+
+		if (seen.has(value)) {
+			return { __type_internal: 'circular' };
+		}
+		seen.add(value);
+
+		if (value instanceof Date) {
+			return { __type_internal: 'date', value: value.toISOString() };
+		}
+
+		if (Array.isArray(value)) {
+			return { __type_internal: 'array', items: value.map((item) => visit(item, depth + 1)) };
+		}
+
+		if (typeof value === 'object') {
+			const result: Record<string, SerializedAttrValue> = {};
+			for (const [key, val] of Object.entries(value)) {
+				result[key] = visit(val, depth + 1);
+			}
+
+			return { __type_internal: 'object', name: value.constructor.name, value: result };
+		}
+
+		return JSON.stringify(value);
+	};
+
+	const sanitized = visit(obj, 0);
+	return JSON.stringify(sanitized, null, 4);
+};
+
 const copyTree = (tree: InternalVnode, mount: Mount, location: number[] = []): TreeNode | null => {
 	if (!tree) return null;
 	let tag: string | null = null;
@@ -89,25 +138,7 @@ const copyTree = (tree: InternalVnode, mount: Mount, location: number[] = []): T
 		tree.children.forEach(pushChild);
 	}
 
-	const attrs = JSON.stringify(
-		tree.attrs ?? {},
-		(_key: string, value: SerializedAttrValue): SerializedAttrValue => {
-			if (typeof value === 'function') {
-				const fn = value as (...args: never[]) => unknown;
-				return { __type_internal: 'function', name: fn.name };
-			} else if (value && typeof value === 'object') {
-				if (value.constructor.name === 'Object') {
-					return value;
-				}
-				return { __type_internal: 'object', name: value.constructor.name };
-			} else if (typeof value === 'number' || typeof value === 'string' || typeof value === 'boolean' || value === null) {
-				return value;
-			} else {
-				return 'Value Unknown';
-			}
-		},
-		4,
-	);
+	const attrs = serializeAttrs(tree.attrs ?? {});
 
 	return { tag, attrs, isComponent, children, location };
 };
